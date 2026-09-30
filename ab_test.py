@@ -29,13 +29,16 @@ from question_bank import QuestionBank
 SESSION_NUMBER = 1
 DEFAULT_N = 20
 
-CSV_PATH = os.path.join(config.DATA_DIR, "ab_test_results.csv")
-JSON_PATH = os.path.join(config.DATA_DIR, "ab_test_results.json")
+def _output_paths(session_number: int) -> tuple:
+    suffix = "" if session_number == SESSION_NUMBER else f"_session{session_number}"
+    csv_path = os.path.join(config.DATA_DIR, f"ab_test_results{suffix}.csv")
+    json_path = os.path.join(config.DATA_DIR, f"ab_test_results{suffix}.json")
+    return csv_path, json_path
 
 
-def _build_answer_pool(n: int) -> list:
-    """N (persona, question) combos from session 1, cycling if n > 36."""
-    questions = QuestionBank().session(SESSION_NUMBER)
+def _build_answer_pool(n: int, session_number: int = SESSION_NUMBER) -> list:
+    """N (persona, question) combos from the given session, cycling if n > 36."""
+    questions = QuestionBank().session(session_number)
     persona_keys = list(PERSONAS.keys())
     combos = list(itertools.product(persona_keys, questions))
 
@@ -55,8 +58,8 @@ def _build_answer_pool(n: int) -> list:
     return pool
 
 
-def run_ab_test(n: int = DEFAULT_N) -> pd.DataFrame:
-    pool = _build_answer_pool(n)
+def run_ab_test(n: int = DEFAULT_N, session_number: int = SESSION_NUMBER) -> pd.DataFrame:
+    pool = _build_answer_pool(n, session_number)
 
     rows = []
     for item in pool:
@@ -89,9 +92,15 @@ def main():
     parser.add_argument(
         "--n", type=int, default=DEFAULT_N, help="Number of synthetic answers (default 20)."
     )
+    parser.add_argument(
+        "--session",
+        type=int,
+        default=SESSION_NUMBER,
+        help="question_bank.py session to draw questions from, 1 (easiest) to 5 (hardest). Default 1.",
+    )
     args = parser.parse_args()
 
-    df = run_ab_test(args.n)
+    df = run_ab_test(args.n, args.session)
 
     print("\n=== Contingency table (prompt_variant x category) ===")
     crosstab = pd.crosstab(df["prompt_variant"], df["category"])
@@ -120,22 +129,25 @@ def main():
             "be unreliable at this sample size."
         )
 
+    csv_path, json_path = _output_paths(args.session)
+
     os.makedirs(config.DATA_DIR, exist_ok=True)
-    df.to_csv(CSV_PATH, index=False)
+    df.to_csv(csv_path, index=False)
 
     results = {
         "n": args.n,
+        "session": args.session,
         "chi2": chi2,
         "p": p,
         "dof": dof,
         "significant": significant,
         "small_sample_warning": small_sample_warning,
     }
-    with open(JSON_PATH, "w", encoding="utf-8") as f:
+    with open(json_path, "w", encoding="utf-8") as f:
         json.dump(results, f, ensure_ascii=False, indent=2)
 
-    print(f"\nSaved: {CSV_PATH}")
-    print(f"Saved: {JSON_PATH}")
+    print(f"\nSaved: {csv_path}")
+    print(f"Saved: {json_path}")
 
 
 if __name__ == "__main__":
