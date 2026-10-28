@@ -21,6 +21,17 @@ spoken answer → evaluation → robot reaction → perspective-taking (PE)
 question → spoken PE answer → feedback), a Streamlit control surface, and
 the plumbing (STT, logging, API keys, one-command launch) around it.
 
+**Not every question carries the full cycle (clarified 2026-10-28).** Only
+"central/significant" questions get a robot emotional reaction followed by
+a PE question about it. Which questions qualify is decided by
+`question_bank_seed.json`'s existing `category` field:
+`behavioral_pbdi` and `self_reflection` trigger the full cycle (question →
+answer → evaluation → **reaction → PE question → spoken PE answer →
+feedback**); `warm_up`, `motivation_fit`, and `closing` get question →
+answer → evaluation → plain acknowledgement, no reaction, no PE. This is a
+lookup against data already in the question bank — no new field needed,
+and no change to `question_bank.py` itself.
+
 **No-Masking still applies in full.** Nothing added here scores or trains
 delivery style. The new PE-matching step (below) grades *content*
 correctness of an emotion guess against a ground truth the system itself
@@ -102,9 +113,14 @@ Three views, one app (`st.sidebar` navigation or tabs):
   the existing switch as UI instead of an env var.
 - Chat-style transcript, growing live: robot turns and participant turns
   rendered like a messaging UI (`st.chat_message`), not a log dump.
+- Current question's category shown with a small badge indicating
+  whether it's PE-eligible (`behavioral_pbdi`/`self_reflection`) so the
+  operator knows a reaction + perspective-taking question is coming, vs.
+  a plain warm-up/motivation/closing turn.
 - Current robot emotion (label + intensity) and a running Valence/Arousal
   line chart across turns (`st.line_chart` over the session's logged VA
-  pairs — no new charting dependency).
+  pairs — no new charting dependency) — only populated on PE-eligible
+  turns, since those are the only ones with a robot reaction to plot.
 - Transport controls: repeat question, skip, pause, stop. Pause/stop
   must be checked between turns (not mid-LLM-call) — simplest correct
   behavior, avoids half-finished API calls.
@@ -134,7 +150,9 @@ Per-turn record in `data/sessions/<session_id>.jsonl`:
 
 ```json
 {
-  "timestamp": "...", "turn": 3, "stage": "interview" | "pe" | "feedback",
+  "timestamp": "...", "turn": 3, "question_category": "behavioral_pbdi",
+  "stage": "interview" | "pe" | "feedback",
+  "triggers_pe": true,
   "question": "...", "transcript": "...", "stt_corrected": false,
   "evaluation": {"category": "...", "confidence": 0.0, "rationale": "..."},
   "valence": "...", "arousal": "...",
@@ -145,9 +163,16 @@ Per-turn record in `data/sessions/<session_id>.jsonl`:
 }
 ```
 
-Fields not relevant to a given `stage` are simply absent (e.g. `pe_*`
-only appears on `stage: "pe"` records) — same "log everything regardless
-of outcome" convention `graph.py`'s `finalize()` already follows.
+`triggers_pe` is derived straight from `question_category` (`true` for
+`behavioral_pbdi`/`self_reflection`, `false` otherwise) and logged
+explicitly rather than left implicit, so later analysis never has to
+re-derive it from a category string. On a `triggers_pe: false` turn,
+`stage` is always `"interview"` — there is no `"pe"`/`"feedback"` record
+for that turn, and the robot gets a plain acknowledgement (still spoken
+via `furhat_client.say()`, no `react()` call). Fields not relevant to a
+given `stage` are simply absent (e.g. `pe_*` only appears on `stage:
+"pe"` records) — same "log everything regardless of outcome" convention
+`graph.py`'s `finalize()` already follows.
 
 `data/technical_log.jsonl` (separate, shared across sessions): one record
 per error/slow-call, with `component` (`stt`/`llm`/`robot`), `elapsed_ms`,
@@ -200,5 +225,12 @@ analysis while failures are still fully traceable.
 ## Open item to confirm before implementation
 
 "Dynamic emotion across the conversation" is implemented here as
-per-turn re-classification (no cross-turn memory). Flagged above —
-confirm or correct before build starts.
+per-turn re-classification on PE-eligible turns only (no cross-turn
+memory). Flagged above — confirm or correct before build starts.
+
+## Resolved during review (2026-10-28)
+
+Not every question gets a robot reaction + PE question — only
+`behavioral_pbdi`/`self_reflection` questions do, decided from the
+existing `category` field (see Context). `warm_up`/`motivation_fit`/
+`closing` questions get evaluated and acknowledged, no reaction, no PE.
