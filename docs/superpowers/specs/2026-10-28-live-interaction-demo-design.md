@@ -1,7 +1,7 @@
 # Live Interaction Demo — Design
 
 **Date:** 2026-10-28
-**Status:** Draft, pending user review.
+**Status:** Approved 2026-10-28.
 **Spans two repos:** `conversation_engine` (Python, "the brain") and
 `furhat-emotion-study` (Kotlin, "the puppet" — a separate Furhat Skill
 project at `/Users/yuvalzohar/Documents/GitHub/furhat-emotion-study`).
@@ -222,15 +222,12 @@ analysis while failures are still fully traceable.
   (Streamlit UI) — verified by actually running it against a live Virtual
   Furhat, same as the 2026-10-01 demo, before calling this done.
 
-## Open item to confirm before implementation
-
-"Dynamic emotion across the conversation" is implemented here as
-per-turn re-classification on PE-eligible turns only (no cross-turn
-memory). Flagged above — confirm or correct before build starts.
-
 ## Resolved during review (2026-10-28)
 
-Not every question gets a robot reaction + PE question — only
-`behavioral_pbdi`/`self_reflection` questions do, decided from the
-existing `category` field (see Context). `warm_up`/`motivation_fit`/
-`closing` questions get evaluated and acknowledged, no reaction, no PE.
+- Not every question gets a robot reaction + PE question — only
+  `behavioral_pbdi`/`self_reflection` questions do, decided from the
+  existing `category` field (see Context). `warm_up`/`motivation_fit`/
+  `closing` questions get evaluated and acknowledged, no reaction, no PE.
+- "Dynamic emotion across the conversation" is confirmed as per-turn
+  re-classification on PE-eligible turns only — no cross-turn memory/
+  momentum mechanism.
