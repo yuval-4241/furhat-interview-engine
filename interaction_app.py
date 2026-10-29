@@ -39,6 +39,15 @@ elif PAGE == "שיחה חיה":
 
     _VALENCE_TO_NUM = {"low": 0, "medium": 1, "high": 2}
     _AROUSAL_TO_NUM = {"low": 0, "medium": 1, "high": 2}
+    _EMOTION_HE = {
+        "ANGER": "כעס",
+        "CONTEMPT": "בוז",
+        "DISGUST": "גועל",
+        "FEAR": "פחד",
+        "HAPPINESS": "שמחה",
+        "SADNESS": "עצב",
+        "SURPRISE": "הפתעה",
+    }
 
     if "session_id" not in st.session_state:
         st.session_state.session_id = None
@@ -49,6 +58,7 @@ elif PAGE == "שיחה חיה":
         st.session_state.stopped = False
         st.session_state.pending_pe = None  # holds ground-truth emotion while awaiting a PE answer
         st.session_state.last_announced = (None, None)  # (question_index, stage) already spoken+logged once
+        st.session_state.last_robot_emotion = None  # (emotion, intensity) from the most recent reaction
 
     if st.session_state.session_id is None:
         with st.form("start_session"):
@@ -99,6 +109,10 @@ elif PAGE == "שיחה חיה":
         for msg in st.session_state.transcript:
             with st.chat_message(msg["role"]):
                 st.write(msg["text"])
+
+        if st.session_state.last_robot_emotion:
+            emotion, intensity = st.session_state.last_robot_emotion
+            st.caption(f"רגש נוכחי של הרובוט: {_EMOTION_HE.get(emotion, emotion)} (עוצמה {intensity} מתוך 3)")
 
         if st.session_state.va_history:
             st.line_chart(
@@ -225,6 +239,7 @@ elif PAGE == "שיחה חיה":
                             st.session_state.va_history.append(
                                 (_VALENCE_TO_NUM.get(derived_valence, 1), _AROUSAL_TO_NUM.get(derived_arousal, 1))
                             )
+                            st.session_state.last_robot_emotion = (reaction["emotion"], reaction["intensity"])
                             st.session_state.pending_pe = reaction["emotion"]
                         else:
                             sent = furhat_client.say("תודה על התשובה.")
