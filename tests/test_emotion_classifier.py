@@ -102,3 +102,20 @@ def test_surprise_maps_to_medium_valence():
 def test_negative_emotions_map_to_low_valence():
     for emotion in ("ANGER", "CONTEMPT", "DISGUST", "FEAR", "SADNESS"):
         assert derive_valence(emotion) == "low"
+
+
+def test_excited_and_calm_map_to_high_valence():
+    for emotion in ("EXCITED", "CALM"):
+        assert derive_valence(emotion) == "high"
+
+
+def test_bored_and_sleepy_map_to_low_valence():
+    for emotion in ("BORED", "SLEEPY"):
+        assert derive_valence(emotion) == "low"
+
+
+def test_core_emotions_includes_all_eleven_robot_gestures():
+    assert set(CORE_EMOTIONS) == {
+        "ANGER", "CONTEMPT", "DISGUST", "FEAR", "HAPPINESS", "SADNESS", "SURPRISE",
+        "EXCITED", "BORED", "SLEEPY", "CALM",
+    }

@@ -1,14 +1,16 @@
 """
-Emotion Classifier — direct Ekman-emotion classification for the Furhat
+Emotion Classifier — direct emotion classification for the Furhat
 face+voice reaction, independent of evaluator.py.
 
 One LLM call, sees only (question, answer_text) -- not the evaluator's
 rationale or category -- so this stays a genuinely separate read on the
 answer's emotional content rather than a restatement of the evaluator's
-own judgment. Picks freely among all 7 of Ekman's core emotions, no
-register restriction (unlike the earlier VA-keyed emotion_bank.py, which
-excluded ANGER/CONTEMPT/DISGUST as "too hostile" -- that restriction was
-a property of the old mechanism, deliberately dropped here). See
+own judgment. Picks freely among Ekman's 7 core emotions plus 4 more
+circumplex-quadrant-fill emotions (EXCITED, BORED, SLEEPY, CALM) that
+EmotionsLibrary.kt also has gestures for -- no register restriction
+(unlike the earlier VA-keyed emotion_bank.py, which excluded
+ANGER/CONTEMPT/DISGUST as "too hostile" -- that restriction was a
+property of the old mechanism, deliberately dropped here). See
 docs/superpowers/specs/2026-08-16-emotion-first-classification-design.md.
 
 response_bank.py still needs a (valence, arousal) pair to pick spoken
@@ -25,11 +27,18 @@ import re
 import config
 import llm_client
 
-CORE_EMOTIONS = ["ANGER", "CONTEMPT", "DISGUST", "FEAR", "HAPPINESS", "SADNESS", "SURPRISE"]
+CORE_EMOTIONS = [
+    "ANGER", "CONTEMPT", "DISGUST", "FEAR", "HAPPINESS", "SADNESS", "SURPRISE",
+    "EXCITED", "BORED", "SLEEPY", "CALM",
+]
 
-# Grounded in Schneider et al. (2025)'s circumplex quadrants: HAPPINESS in
-# the positive/high-arousal quadrant, the rest in the negative quadrants,
-# SURPRISE conventionally placed near-neutral valence at high arousal.
+# Grounded in Schneider et al. (2025)'s circumplex quadrants: HAPPINESS/
+# EXCITED/CALM in the positive-valence quadrants (high- and low-arousal
+# respectively), the rest in the negative-valence quadrants, SURPRISE
+# conventionally placed near-neutral valence at high arousal. BORED/
+# SLEEPY are the low-arousal negative-valence quadrant's fill emotions --
+# not Ekman emotions, added later purely to give EmotionsLibrary.kt's AU
+# calibration sweep gesture coverage in that quadrant too.
 EMOTION_TO_VALENCE = {
     "HAPPINESS": "high",
     "SURPRISE": "medium",
@@ -38,6 +47,10 @@ EMOTION_TO_VALENCE = {
     "DISGUST": "low",
     "FEAR": "low",
     "SADNESS": "low",
+    "EXCITED": "high",
+    "CALM": "high",
+    "BORED": "low",
+    "SLEEPY": "low",
 }
 
 # Arousal is derived from intensity, NOT fixed per emotion -- fixing both
@@ -61,12 +74,13 @@ _SYSTEM_PROMPT = (
     "confident or professional phrasing on its own is not a signal of "
     "happiness -- do not default to HAPPINESS just because an answer "
     "sounds competent or matter-of-fact.\n\n"
-    "Then pick exactly one of Ekman's core emotions that best fits: "
-    "ANGER, CONTEMPT, DISGUST, FEAR, HAPPINESS, SADNESS, SURPRISE. "
+    "Then pick exactly one of these emotions that best fits: "
+    "ANGER, CONTEMPT, DISGUST, FEAR, HAPPINESS, SADNESS, SURPRISE, "
+    "EXCITED, BORED, SLEEPY, CALM. "
     "Also rate its intensity from 1 (mild) to 3 (strong).\n\n"
     "Respond with ONLY a JSON object of the exact shape: "
     '{"cue": "<the word or phrase, or \\"none\\" if truly nothing '
-    'stands out>", "emotion": "<ONE_OF_THE_7_WORDS_ABOVE>", '
+    'stands out>", "emotion": "<ONE_OF_THE_11_WORDS_ABOVE>", '
     '"intensity": <1, 2, or 3>}'
 )
 
