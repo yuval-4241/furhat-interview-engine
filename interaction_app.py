@@ -55,6 +55,7 @@ elif PAGE == "שיחה חיה":
         st.session_state.paused = False
         st.session_state.stopped = False
         st.session_state.pending_pe = None  # holds ground-truth emotion while awaiting a PE answer
+        st.session_state.last_announced = (None, None)  # (question_index, stage) already spoken+logged once
 
     if st.session_state.session_id is None:
         with st.form("start_session"):
@@ -91,9 +92,11 @@ elif PAGE == "שיחה חיה":
 
         col_a, col_b, col_c, col_d = st.columns(4)
         if col_a.button("🔁 חזור על השאלה"):
-            st.session_state.question_index = max(0, st.session_state.question_index)
+            st.session_state.last_announced = (None, None)
+            st.rerun()
         if col_b.button("⏭️ דלג"):
             st.session_state.question_index += 1
+            st.session_state.pending_pe = None
             st.rerun()
         if col_c.button("⏸️ השהה" if not st.session_state.paused else "▶️ המשך"):
             st.session_state.paused = not st.session_state.paused
@@ -124,9 +127,10 @@ elif PAGE == "שיחה חיה":
 
             if st.session_state.pending_pe is None:
                 # ── Interview question turn ──
-                with st.chat_message("assistant"):
-                    st.write(q["text"])
-                st.session_state.transcript.append({"role": "assistant", "text": q["text"]})
+                if st.session_state.last_announced != (st.session_state.question_index, "interview"):
+                    furhat_client.say(q["text"])
+                    st.session_state.transcript.append({"role": "assistant", "text": q["text"]})
+                    st.session_state.last_announced = (st.session_state.question_index, "interview")
 
                 audio = st.audio_input("ענה/י בקול", key=f"audio_interview_{st.session_state.question_index}")
                 manual_text = st.text_input(
@@ -222,8 +226,10 @@ elif PAGE == "שיחה חיה":
             else:
                 # ── PE question turn (only reached when triggers_pe was True) ──
                 pe_question = "מה לדעתך הרגשתי? למה?"
-                with st.chat_message("assistant"):
-                    st.write(pe_question)
+                if st.session_state.last_announced != (st.session_state.question_index, "pe"):
+                    furhat_client.say(pe_question)
+                    st.session_state.transcript.append({"role": "assistant", "text": pe_question})
+                    st.session_state.last_announced = (st.session_state.question_index, "pe")
 
                 pe_audio = st.audio_input(
                     "ענה/י בקול (שאלת פרספקטיבה)",
