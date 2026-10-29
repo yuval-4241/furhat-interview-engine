@@ -43,7 +43,245 @@ if PAGE == "הגדרות":
 
 elif PAGE == "שיחה חיה":
     st.title("שיחה חיה")
-    st.info("בבנייה — ראו Task 11.")
+
+    _VALENCE_TO_NUM = {"low": 0, "medium": 1, "high": 2}
+    _AROUSAL_TO_NUM = {"low": 0, "medium": 1, "high": 2}
+
+    if "session_id" not in st.session_state:
+        st.session_state.session_id = None
+        st.session_state.transcript = []
+        st.session_state.va_history = []
+        st.session_state.question_index = 0
+        st.session_state.paused = False
+        st.session_state.stopped = False
+        st.session_state.pending_pe = None  # holds ground-truth emotion while awaiting a PE answer
+
+    if st.session_state.session_id is None:
+        with st.form("start_session"):
+            session_code = st.text_input("קוד משתתף (לא שם!)")
+            session_number = st.selectbox("מפגש", options=[1, 2, 3, 4, 5])
+            provider = st.selectbox("ספק מודל", options=["openai", "lab", "mock"])
+            model_name = st.text_input("שם מודל (ריק = ברירת מחדל)")
+            started = st.form_submit_button("🟢 התחל שיחה", type="primary")
+
+        if started:
+            if not session_code.strip():
+                st.error("צריך קוד משתתף כדי להתחיל.")
+            else:
+                os.environ["LLM_PROVIDER"] = provider
+                st.session_state.session_id = session_code.strip()
+                st.session_state.session_number = session_number
+                st.session_state.model_override = model_name.strip() or None
+                st.rerun()
+
+    else:
+        import time
+
+        import evaluator
+        import guardrail
+        import emotion_classifier
+        import session_flow
+        import stt as stt_module
+        import pe_check as pe_check_module
+        import interaction_log
+        from question_bank import QuestionBank
+
+        bank = QuestionBank()
+        questions = bank.session(st.session_state.session_number)
+
+        col_a, col_b, col_c, col_d = st.columns(4)
+        if col_a.button("🔁 חזור על השאלה"):
+            st.session_state.question_index = max(0, st.session_state.question_index)
+        if col_b.button("⏭️ דלג"):
+            st.session_state.question_index += 1
+            st.rerun()
+        if col_c.button("⏸️ השהה" if not st.session_state.paused else "▶️ המשך"):
+            st.session_state.paused = not st.session_state.paused
+        if col_d.button("⏹️ עצור"):
+            st.session_state.stopped = True
+
+        for msg in st.session_state.transcript:
+            with st.chat_message(msg["role"]):
+                st.write(msg["text"])
+
+        if st.session_state.va_history:
+            st.line_chart(
+                {
+                    "valence": [v for v, a in st.session_state.va_history],
+                    "arousal": [a for v, a in st.session_state.va_history],
+                }
+            )
+
+        if st.session_state.stopped:
+            st.success("השיחה הסתיימה.")
+        elif st.session_state.paused:
+            st.warning("השיחה מושהית.")
+        elif st.session_state.question_index >= len(questions):
+            st.success("כל השאלות נענו.")
+        else:
+            q = questions[st.session_state.question_index]
+            triggers_pe = session_flow.triggers_pe(q["category"])
+
+            if st.session_state.pending_pe is None:
+                # ── Interview question turn ──
+                with st.chat_message("assistant"):
+                    st.write(q["text"])
+                st.session_state.transcript.append({"role": "assistant", "text": q["text"]})
+
+                audio = st.audio_input("ענה/י בקול", key=f"audio_interview_{st.session_state.question_index}")
+                manual_text = st.text_input(
+                    "או הקלד/י תשובה (גיבוי אם התמלול נכשל)",
+                    key=f"text_interview_{st.session_state.question_index}",
+                )
+
+                if audio is not None or manual_text:
+                    start = time.time()
+                    if manual_text:
+                        answer_text = manual_text
+                        stt_corrected = True
+                    else:
+                        try:
+                            answer_text = stt_module.transcribe(audio.getvalue())
+                            stt_corrected = False
+                        except stt_module.SttError as e:
+                            interaction_log.log_technical("stt", (time.time() - start) * 1000, error=str(e))
+                            st.error(f"תמלול נכשל: {e}. אפשר להקליד למטה.")
+                            answer_text = None
+                            stt_corrected = None
+
+                    if answer_text:
+                        st.session_state.transcript.append({"role": "user", "text": answer_text})
+
+                        llm_start = time.time()
+                        try:
+                            ev = evaluator.evaluate(q["text"], answer_text)
+                            gr = guardrail.check_rationale(ev.rationale)
+                            consistency = guardrail.check_consistency(ev.category, ev.valence)
+                        except Exception as e:
+                            interaction_log.log_technical("llm", (time.time() - llm_start) * 1000, error=str(e))
+                            st.error(f"ההערכה נכשלה: {e}")
+                            if st.button("נסה שוב", key=f"retry_eval_{st.session_state.question_index}"):
+                                st.rerun()
+                            st.stop()
+
+                        record = {
+                            "timestamp": time.time(),
+                            "turn": st.session_state.question_index,
+                            "question_category": q["category"],
+                            "triggers_pe": triggers_pe,
+                            "stage": "interview",
+                            "question": q["text"],
+                            "transcript": answer_text,
+                            "stt_corrected": stt_corrected,
+                            "evaluation": {
+                                "category": ev.category,
+                                "confidence": ev.confidence,
+                                "rationale": ev.rationale,
+                            },
+                            "valence": ev.valence,
+                            "arousal": ev.arousal,
+                            "guardrail": {"passed": gr.passed, "matched_patterns": gr.matched_patterns},
+                            "consistency": {"consistent": consistency.consistent, "note": consistency.note},
+                            "model": {
+                                "provider": os.environ.get("LLM_PROVIDER", "lab"),
+                                "model": st.session_state.model_override or config.MODEL_DEFAULT,
+                            },
+                        }
+
+                        if triggers_pe:
+                            try:
+                                reaction = emotion_classifier.classify_emotion(q["text"], answer_text)
+                            except Exception as e:
+                                interaction_log.log_technical("llm", 0, error=str(e))
+                                st.error(f"סיווג הרגש נכשל: {e}")
+                                if st.button("נסה שוב", key=f"retry_classify_{st.session_state.question_index}"):
+                                    st.rerun()
+                                st.stop()
+
+                            derived_valence = emotion_classifier.derive_valence(reaction["emotion"])
+                            derived_arousal = emotion_classifier.derive_arousal(reaction["intensity"])
+                            record["robot_emotion"] = reaction["emotion"]
+                            record["robot_intensity"] = reaction["intensity"]
+
+                            sent = furhat_client.react(reaction["emotion"], reaction["intensity"])
+                            if not sent["sent"]:
+                                interaction_log.log_technical("robot", 0, error=sent["reason"])
+                                st.warning(f"הרובוט לא הגיב: {sent['reason']}")
+
+                            st.session_state.va_history.append(
+                                (_VALENCE_TO_NUM.get(derived_valence, 1), _AROUSAL_TO_NUM.get(derived_arousal, 1))
+                            )
+                            st.session_state.pending_pe = reaction["emotion"]
+                        else:
+                            furhat_client.say("תודה על התשובה.")
+                            st.session_state.question_index += 1
+
+                        interaction_log.log_turn(st.session_state.session_id, record)
+                        st.rerun()
+
+            else:
+                # ── PE question turn (only reached when triggers_pe was True) ──
+                pe_question = "מה לדעתך הרגשתי? למה?"
+                with st.chat_message("assistant"):
+                    st.write(pe_question)
+
+                pe_audio = st.audio_input(
+                    "ענה/י בקול (שאלת פרספקטיבה)",
+                    key=f"audio_pe_{st.session_state.question_index}",
+                )
+                pe_manual_text = st.text_input(
+                    "או הקלד/י תשובה", key=f"pe_manual_{st.session_state.question_index}"
+                )
+
+                if pe_audio is not None or pe_manual_text:
+                    if pe_manual_text:
+                        pe_answer = pe_manual_text
+                    else:
+                        try:
+                            pe_answer = stt_module.transcribe(pe_audio.getvalue())
+                        except stt_module.SttError as e:
+                            st.error(f"תמלול נכשל: {e}. אפשר להקליד למטה.")
+                            pe_answer = None
+
+                    if pe_answer:
+                        st.session_state.transcript.append({"role": "user", "text": pe_answer})
+
+                        try:
+                            result = pe_check_module.check_pe_answer(st.session_state.pending_pe, pe_answer)
+                        except Exception as e:
+                            interaction_log.log_technical("llm", 0, error=str(e))
+                            st.error(f"בדיקת תשובת הפרספקטיבה נכשלה: {e}")
+                            if st.button("נסה שוב", key=f"retry_pe_{st.session_state.question_index}"):
+                                st.rerun()
+                            st.stop()
+
+                        feedback = (
+                            "נכון! " + result["explanation"]
+                            if result["match"]
+                            else "לא בדיוק. " + result["explanation"]
+                        )
+                        with st.chat_message("assistant"):
+                            st.write(feedback)
+                        st.session_state.transcript.append({"role": "assistant", "text": feedback})
+                        furhat_client.say(feedback)
+
+                        interaction_log.log_turn(
+                            st.session_state.session_id,
+                            {
+                                "timestamp": time.time(),
+                                "turn": st.session_state.question_index,
+                                "question_category": q["category"],
+                                "triggers_pe": True,
+                                "stage": "pe",
+                                "pe_answer": pe_answer,
+                                "pe_match": result["match"],
+                                "pe_explanation": result["explanation"],
+                            },
+                        )
+
+                        st.session_state.pending_pe = None
+                        st.session_state.question_index += 1
+                        st.rerun()
 
 elif PAGE == "היסטוריה":
     st.title("היסטוריה")
