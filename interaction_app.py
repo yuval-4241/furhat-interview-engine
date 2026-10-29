@@ -333,4 +333,40 @@ elif PAGE == "שיחה חיה":
 
 elif PAGE == "היסטוריה":
     st.title("היסטוריה")
-    st.info("בבנייה — ראו Task 12.")
+
+    import csv
+    import io
+
+    import interaction_log
+
+    sessions = interaction_log.list_sessions()
+    if not sessions:
+        st.info("אין עדיין שיחות שמורות.")
+    else:
+        labels = [f"{s['session_id']} ({s['turn_count']} תורות)" for s in sessions]
+        chosen = st.selectbox("בחר/י שיחה", options=range(len(sessions)), format_func=lambda i: labels[i])
+        session_id = sessions[chosen]["session_id"]
+        records = interaction_log.load_session(session_id)
+
+        for r in records:
+            if "question" in r:
+                with st.chat_message("assistant"):
+                    st.write(r["question"])
+            if "transcript" in r:
+                with st.chat_message("user"):
+                    st.write(r["transcript"])
+            if r.get("stage") == "pe":
+                with st.chat_message("user"):
+                    st.write(r.get("pe_answer", ""))
+                with st.chat_message("assistant"):
+                    st.write(r.get("pe_explanation", ""))
+
+        buf = io.StringIO()
+        if records:
+            writer = csv.DictWriter(buf, fieldnames=sorted({k for r in records for k in r}))
+            writer.writeheader()
+            for r in records:
+                writer.writerow(r)
+        st.download_button(
+            "ייצוא ל-CSV", data=buf.getvalue(), file_name=f"{session_id}.csv", mime="text/csv"
+        )
