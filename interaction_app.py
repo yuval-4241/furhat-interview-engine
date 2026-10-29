@@ -64,6 +64,8 @@ elif PAGE == "שיחה חיה":
         with st.form("start_session"):
             session_code = st.text_input("קוד משתתף (לא שם!)")
             session_number = st.selectbox("מפגש", options=[1, 2, 3, 4, 5])
+            language_label = st.selectbox("שפת הראיון", options=["עברית", "English"])
+            voice_label = st.selectbox("קול הרובוט", options=["אישה", "גבר"])
             st.caption(
                 f"ספק פעיל: **{config.LLM_PROVIDER}**, מודל: **{config.MODEL_DEFAULT}** "
                 f"(נקבע בהפעלת השרת, לא ניתן לשינוי כאן)"
@@ -76,6 +78,9 @@ elif PAGE == "שיחה חיה":
             else:
                 st.session_state.session_id = session_code.strip()
                 st.session_state.session_number = session_number
+                st.session_state.language = "ENGLISH" if language_label == "English" else "HEBREW"
+                st.session_state.stt_language_code = "en-US" if language_label == "English" else "he-IL"
+                st.session_state.voice_gender = "MALE" if voice_label == "גבר" else "FEMALE"
                 st.rerun()
 
     else:
@@ -137,7 +142,9 @@ elif PAGE == "שיחה חיה":
                 if st.session_state.last_announced != (st.session_state.question_index, "interview"):
                     with st.chat_message("assistant"):
                         st.write(q["text"])
-                    sent = furhat_client.say(q["text"])
+                    sent = furhat_client.say(
+                        q["text"], language=st.session_state.language, gender=st.session_state.voice_gender
+                    )
                     if not sent["sent"]:
                         interaction_log.log_technical("robot", 0, error=sent["reason"])
                         st.warning(f"הרובוט לא הגיב: {sent['reason']}")
@@ -158,7 +165,9 @@ elif PAGE == "שיחה חיה":
                             new_stt_corrected = True
                         else:
                             try:
-                                new_answer_text = stt_module.transcribe(audio.getvalue())
+                                new_answer_text = stt_module.transcribe(
+                                    audio.getvalue(), language_code=st.session_state.stt_language_code
+                                )
                                 new_stt_corrected = False
                             except stt_module.SttError as e:
                                 interaction_log.log_technical("stt", (time.time() - start) * 1000, error=str(e))
@@ -214,6 +223,8 @@ elif PAGE == "שיחה חיה":
                                 "provider": config.LLM_PROVIDER,
                                 "model": config.MODEL_DEFAULT,
                             },
+                            "language": st.session_state.language,
+                            "voice_gender": st.session_state.voice_gender,
                         }
 
                         if triggers_pe:
@@ -231,7 +242,12 @@ elif PAGE == "שיחה חיה":
                             record["robot_emotion"] = reaction["emotion"]
                             record["robot_intensity"] = reaction["intensity"]
 
-                            sent = furhat_client.react(reaction["emotion"], reaction["intensity"])
+                            sent = furhat_client.react(
+                                reaction["emotion"],
+                                reaction["intensity"],
+                                language=st.session_state.language,
+                                gender=st.session_state.voice_gender,
+                            )
                             if not sent["sent"]:
                                 interaction_log.log_technical("robot", 0, error=sent["reason"])
                                 st.warning(f"הרובוט לא הגיב: {sent['reason']}")
@@ -242,7 +258,11 @@ elif PAGE == "שיחה חיה":
                             st.session_state.last_robot_emotion = (reaction["emotion"], reaction["intensity"])
                             st.session_state.pending_pe = reaction["emotion"]
                         else:
-                            sent = furhat_client.say("תודה על התשובה.")
+                            sent = furhat_client.say(
+                                "תודה על התשובה.",
+                                language=st.session_state.language,
+                                gender=st.session_state.voice_gender,
+                            )
                             if not sent["sent"]:
                                 interaction_log.log_technical("robot", 0, error=sent["reason"])
                                 st.warning(f"הרובוט לא הגיב: {sent['reason']}")
@@ -257,7 +277,9 @@ elif PAGE == "שיחה חיה":
                 if st.session_state.last_announced != (st.session_state.question_index, "pe"):
                     with st.chat_message("assistant"):
                         st.write(pe_question)
-                    sent = furhat_client.say(pe_question)
+                    sent = furhat_client.say(
+                        pe_question, language=st.session_state.language, gender=st.session_state.voice_gender
+                    )
                     if not sent["sent"]:
                         interaction_log.log_technical("robot", 0, error=sent["reason"])
                         st.warning(f"הרובוט לא הגיב: {sent['reason']}")
@@ -278,7 +300,9 @@ elif PAGE == "שיחה חיה":
                             new_pe_answer = pe_manual_text
                         else:
                             try:
-                                new_pe_answer = stt_module.transcribe(pe_audio.getvalue())
+                                new_pe_answer = stt_module.transcribe(
+                                    pe_audio.getvalue(), language_code=st.session_state.stt_language_code
+                                )
                             except stt_module.SttError as e:
                                 interaction_log.log_technical("stt", 0, error=str(e))
                                 st.error(f"תמלול נכשל: {e}. אפשר להקליד למטה.")
@@ -312,7 +336,9 @@ elif PAGE == "שיחה חיה":
                         with st.chat_message("assistant"):
                             st.write(feedback)
                         st.session_state.transcript.append({"role": "assistant", "text": feedback})
-                        sent = furhat_client.say(feedback)
+                        sent = furhat_client.say(
+                            feedback, language=st.session_state.language, gender=st.session_state.voice_gender
+                        )
                         if not sent["sent"]:
                             interaction_log.log_technical("robot", 0, error=sent["reason"])
                             st.warning(f"הרובוט לא הגיב: {sent['reason']}")
@@ -332,6 +358,8 @@ elif PAGE == "שיחה חיה":
                                     "provider": config.LLM_PROVIDER,
                                     "model": config.MODEL_DEFAULT,
                                 },
+                                "language": st.session_state.language,
+                                "voice_gender": st.session_state.voice_gender,
                             },
                         )
 
