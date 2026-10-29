@@ -21,5 +21,10 @@ echo ""
 echo "=== 3/3  מפעילה את ממשק השיחה ==="
 cd "$CE_DIR"
 source venv/bin/activate
-export LLM_PROVIDER=openai
+if [ -f .env ]; then
+    set -a
+    source .env
+    set +a
+fi
+export LLM_PROVIDER="${LLM_PROVIDER:-openai}"
 streamlit run interaction_app.py
