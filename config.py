@@ -77,6 +77,8 @@ DATA_DIR = os.path.join(os.path.dirname(__file__), "data")
 RESPONSE_BANK_PATH = os.path.join(DATA_DIR, "response_bank_seed.json")
 REVIEW_QUEUE_PATH = os.path.join(DATA_DIR, "review_queue.jsonl")
 RUN_LOG_PATH = os.path.join(DATA_DIR, "run_log.jsonl")
+SESSIONS_DIR = os.path.join(DATA_DIR, "sessions")
+TECHNICAL_LOG_PATH = os.path.join(DATA_DIR, "technical_log.jsonl")
 
 # Batch-run outputs (e.g. run_demo.py) — separate from the cumulative
 # data/run_log.jsonl, so each batch's records/summary are easy to inspect
