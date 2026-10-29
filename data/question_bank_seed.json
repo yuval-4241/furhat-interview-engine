@@ -5,8 +5,8 @@
     {"category": "warm_up", "difficulty": 1, "text": "ספר לי קצת על עצמך."},
     {"category": "motivation_fit", "difficulty": 1, "text": "למה אתה מעוניין בסוג התפקיד הזה?"},
     {"category": "behavioral_pbdi", "difficulty": 1, "text": "ספר לי על פעם שעבדת בצוות."},
-    {"category": "self_reflection", "difficulty": 1, "text": "מה נחשב אצלך ליתרון בעבודה?"},
-    {"category": "self_reflection", "difficulty": 1, "text": "מה נחשב אצלך לתחום לשיפור?"},
+    {"category": "self_reflection", "difficulty": 1, "text": "מה החוזקה שלך?"},
+    {"category": "self_reflection", "difficulty": 1, "text": "מה את חושבת שתפקידך בצוות ובחברה?"},
     {"category": "closing", "difficulty": 1, "text": "יש לך שאלות אליי?"}
   ],
   "session_2": [
