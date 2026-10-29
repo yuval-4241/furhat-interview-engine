@@ -5,4 +5,4 @@ pandas
 scipy
 pydantic
 pytest
-google-cloud-speech
+requests

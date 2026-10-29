@@ -27,9 +27,10 @@ python -m venv venv && source venv/bin/activate
 pip install -r requirements.txt
 cp .env.example .env
 ```
-ואז למלא ב-`.env`: `OPENAI_API_KEY`, ונתיב קובץ ה-service-account של
-Google ב-`GOOGLE_APPLICATION_CREDENTIALS` (שימי את הקובץ עצמו תחת
-`credentials/`, שלא עולה ל-git).
+ואז למלא ב-`.env`: `OPENAI_API_KEY`, ו-`GOOGLE_SPEECH_API_KEY` (מפתח API
+רגיל מ-Google Cloud Console -> APIs & Services -> Credentials, מוגבל
+ל-Cloud Speech-to-Text API בלבד). לא נדרש קובץ service-account —
+השיחה החיה פונה ל-REST API של Google ישירות עם המפתח.
 
 ### הפעלה
 ```bash

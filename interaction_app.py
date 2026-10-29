@@ -5,8 +5,6 @@ questions) and asks a perspective-taking question. See
 docs/superpowers/specs/2026-10-28-live-interaction-demo-design.md.
 """
 
-import os
-
 import streamlit as st
 
 import config
@@ -27,12 +25,7 @@ if PAGE == "הגדרות":
     st.subheader("מפתחות API")
     st.write(f"**OpenAI API Key:** {_configured(config.OPENAI_API_KEY)}")
     st.write(f"**Lab LLM Token:** {_configured(config.LAB_LLM_TOKEN)}")
-    google_creds_set = bool(config.GOOGLE_APPLICATION_CREDENTIALS)
-    google_creds_exists = google_creds_set and os.path.isfile(config.GOOGLE_APPLICATION_CREDENTIALS)
-    st.write(
-        f"**Google credentials:** "
-        f"{'✅ מוגדר וקיים' if google_creds_exists else ('⚠️ מוגדר אך הקובץ לא נמצא' if google_creds_set else '❌ לא מוגדר')}"
-    )
+    st.write(f"**Google Speech API Key:** {_configured(config.GOOGLE_SPEECH_API_KEY)}")
 
     st.subheader("חיבורים")
     if st.button("בדוק חיבור לרובוט"):
