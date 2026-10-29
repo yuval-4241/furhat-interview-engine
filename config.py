@@ -91,3 +91,4 @@ RESULTS_DIR = os.path.join(os.path.dirname(__file__), "results")
 ROBOT_REACTION_ENABLED = os.environ.get("ROBOT_REACTION_ENABLED", "false").lower() == "true"
 ROBOT_BRIDGE_URL = "http://localhost:8765/react"
 ROBOT_BRIDGE_TIMEOUT = 2.0  # seconds — never let a dead robot connection stall the pipeline
+ROBOT_BRIDGE_BASE_URL = "http://localhost:8765"
