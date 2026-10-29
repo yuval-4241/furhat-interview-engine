@@ -61,18 +61,18 @@ elif PAGE == "שיחה חיה":
         with st.form("start_session"):
             session_code = st.text_input("קוד משתתף (לא שם!)")
             session_number = st.selectbox("מפגש", options=[1, 2, 3, 4, 5])
-            provider = st.selectbox("ספק מודל", options=["openai", "lab", "mock"])
-            model_name = st.text_input("שם מודל (ריק = ברירת מחדל)")
+            st.caption(
+                f"ספק פעיל: **{config.LLM_PROVIDER}**, מודל: **{config.MODEL_DEFAULT}** "
+                f"(נקבע בהפעלת השרת, לא ניתן לשינוי כאן)"
+            )
             started = st.form_submit_button("🟢 התחל שיחה", type="primary")
 
         if started:
             if not session_code.strip():
                 st.error("צריך קוד משתתף כדי להתחיל.")
             else:
-                os.environ["LLM_PROVIDER"] = provider
                 st.session_state.session_id = session_code.strip()
                 st.session_state.session_number = session_number
-                st.session_state.model_override = model_name.strip() or None
                 st.rerun()
 
     else:
@@ -128,6 +128,8 @@ elif PAGE == "שיחה חיה":
             if st.session_state.pending_pe is None:
                 # ── Interview question turn ──
                 if st.session_state.last_announced != (st.session_state.question_index, "interview"):
+                    with st.chat_message("assistant"):
+                        st.write(q["text"])
                     furhat_client.say(q["text"])
                     st.session_state.transcript.append({"role": "assistant", "text": q["text"]})
                     st.session_state.last_announced = (st.session_state.question_index, "interview")
@@ -139,23 +141,35 @@ elif PAGE == "שיחה חיה":
                 )
 
                 if audio is not None or manual_text:
-                    start = time.time()
-                    if manual_text:
-                        answer_text = manual_text
-                        stt_corrected = True
+                    if st.session_state.get("last_answer_index") != st.session_state.question_index:
+                        start = time.time()
+                        if manual_text:
+                            new_answer_text = manual_text
+                            new_stt_corrected = True
+                        else:
+                            try:
+                                new_answer_text = stt_module.transcribe(audio.getvalue())
+                                new_stt_corrected = False
+                            except stt_module.SttError as e:
+                                interaction_log.log_technical("stt", (time.time() - start) * 1000, error=str(e))
+                                st.error(f"תמלול נכשל: {e}. אפשר להקליד למטה.")
+                                new_answer_text = None
+                                new_stt_corrected = None
+
+                        if new_answer_text:
+                            st.session_state.transcript.append({"role": "user", "text": new_answer_text})
+                            st.session_state.last_answer_index = st.session_state.question_index
+                            st.session_state.last_answer_text = new_answer_text
+                            st.session_state.last_stt_corrected = new_stt_corrected
+
+                    if st.session_state.get("last_answer_index") == st.session_state.question_index:
+                        answer_text = st.session_state.last_answer_text
+                        stt_corrected = st.session_state.last_stt_corrected
                     else:
-                        try:
-                            answer_text = stt_module.transcribe(audio.getvalue())
-                            stt_corrected = False
-                        except stt_module.SttError as e:
-                            interaction_log.log_technical("stt", (time.time() - start) * 1000, error=str(e))
-                            st.error(f"תמלול נכשל: {e}. אפשר להקליד למטה.")
-                            answer_text = None
-                            stt_corrected = None
+                        answer_text = None
+                        stt_corrected = None
 
                     if answer_text:
-                        st.session_state.transcript.append({"role": "user", "text": answer_text})
-
                         llm_start = time.time()
                         try:
                             ev = evaluator.evaluate(q["text"], answer_text)
@@ -187,8 +201,8 @@ elif PAGE == "שיחה חיה":
                             "guardrail": {"passed": gr.passed, "matched_patterns": gr.matched_patterns},
                             "consistency": {"consistent": consistency.consistent, "note": consistency.note},
                             "model": {
-                                "provider": os.environ.get("LLM_PROVIDER", "lab"),
-                                "model": st.session_state.model_override or config.MODEL_DEFAULT,
+                                "provider": config.LLM_PROVIDER,
+                                "model": config.MODEL_DEFAULT,
                             },
                         }
 
@@ -217,7 +231,10 @@ elif PAGE == "שיחה חיה":
                             )
                             st.session_state.pending_pe = reaction["emotion"]
                         else:
-                            furhat_client.say("תודה על התשובה.")
+                            sent = furhat_client.say("תודה על התשובה.")
+                            if not sent["sent"]:
+                                interaction_log.log_technical("robot", 0, error=sent["reason"])
+                                st.warning(f"הרובוט לא הגיב: {sent['reason']}")
                             st.session_state.question_index += 1
 
                         interaction_log.log_turn(st.session_state.session_id, record)
@@ -227,6 +244,8 @@ elif PAGE == "שיחה חיה":
                 # ── PE question turn (only reached when triggers_pe was True) ──
                 pe_question = "מה לדעתך הרגשתי? למה?"
                 if st.session_state.last_announced != (st.session_state.question_index, "pe"):
+                    with st.chat_message("assistant"):
+                        st.write(pe_question)
                     furhat_client.say(pe_question)
                     st.session_state.transcript.append({"role": "assistant", "text": pe_question})
                     st.session_state.last_announced = (st.session_state.question_index, "pe")
@@ -240,18 +259,28 @@ elif PAGE == "שיחה חיה":
                 )
 
                 if pe_audio is not None or pe_manual_text:
-                    if pe_manual_text:
-                        pe_answer = pe_manual_text
+                    if st.session_state.get("last_pe_answer_index") != st.session_state.question_index:
+                        if pe_manual_text:
+                            new_pe_answer = pe_manual_text
+                        else:
+                            try:
+                                new_pe_answer = stt_module.transcribe(pe_audio.getvalue())
+                            except stt_module.SttError as e:
+                                interaction_log.log_technical("stt", 0, error=str(e))
+                                st.error(f"תמלול נכשל: {e}. אפשר להקליד למטה.")
+                                new_pe_answer = None
+
+                        if new_pe_answer:
+                            st.session_state.transcript.append({"role": "user", "text": new_pe_answer})
+                            st.session_state.last_pe_answer_index = st.session_state.question_index
+                            st.session_state.last_pe_answer_text = new_pe_answer
+
+                    if st.session_state.get("last_pe_answer_index") == st.session_state.question_index:
+                        pe_answer = st.session_state.last_pe_answer_text
                     else:
-                        try:
-                            pe_answer = stt_module.transcribe(pe_audio.getvalue())
-                        except stt_module.SttError as e:
-                            st.error(f"תמלול נכשל: {e}. אפשר להקליד למטה.")
-                            pe_answer = None
+                        pe_answer = None
 
                     if pe_answer:
-                        st.session_state.transcript.append({"role": "user", "text": pe_answer})
-
                         try:
                             result = pe_check_module.check_pe_answer(st.session_state.pending_pe, pe_answer)
                         except Exception as e:
@@ -269,7 +298,10 @@ elif PAGE == "שיחה חיה":
                         with st.chat_message("assistant"):
                             st.write(feedback)
                         st.session_state.transcript.append({"role": "assistant", "text": feedback})
-                        furhat_client.say(feedback)
+                        sent = furhat_client.say(feedback)
+                        if not sent["sent"]:
+                            interaction_log.log_technical("robot", 0, error=sent["reason"])
+                            st.warning(f"הרובוט לא הגיב: {sent['reason']}")
 
                         interaction_log.log_turn(
                             st.session_state.session_id,
@@ -282,6 +314,10 @@ elif PAGE == "שיחה חיה":
                                 "pe_answer": pe_answer,
                                 "pe_match": result["match"],
                                 "pe_explanation": result["explanation"],
+                                "model": {
+                                    "provider": config.LLM_PROVIDER,
+                                    "model": config.MODEL_DEFAULT,
+                                },
                             },
                         )
 
