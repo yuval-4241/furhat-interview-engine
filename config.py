@@ -15,6 +15,7 @@ LLM_PROVIDER = os.environ.get("LLM_PROVIDER", "lab")
 LAB_LLM_BASE_URL = "http://100.110.96.82:8000/v1"
 LAB_LLM_TOKEN = os.environ.get("LAB_LLM_TOKEN", "")
 OPENAI_API_KEY = os.environ.get("OPENAI_API_KEY", "")
+GOOGLE_APPLICATION_CREDENTIALS = os.environ.get("GOOGLE_APPLICATION_CREDENTIALS", "")
 
 # Model choice: start fast/cheap while building, move up once quality matters.
 # For Hebrew response generation later, consider dictalm3-12b / dictalm3-24b.
