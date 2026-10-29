@@ -1,3 +1,5 @@
+import json
+
 import furhat_client
 
 
@@ -42,6 +44,51 @@ def test_react_sends_emotion_intensity_and_optional_text(monkeypatch):
     assert result == {"sent": True, "reason": None}
     assert captured["url"].endswith("/react")
     assert "HAPPINESS" in captured["data"].decode("utf-8")
+
+
+def test_say_omits_language_and_gender_when_not_given(monkeypatch):
+    captured = {}
+
+    def fake_post(url, data=None, headers=None, timeout=None):
+        captured["data"] = data
+        return _FakeResponse(200)
+
+    monkeypatch.setattr(furhat_client.requests, "post", fake_post)
+    furhat_client.say("שלום")
+
+    body = json.loads(captured["data"].decode("utf-8"))
+    assert "language" not in body
+    assert "gender" not in body
+
+
+def test_say_includes_language_and_gender_when_given(monkeypatch):
+    captured = {}
+
+    def fake_post(url, data=None, headers=None, timeout=None):
+        captured["data"] = data
+        return _FakeResponse(200)
+
+    monkeypatch.setattr(furhat_client.requests, "post", fake_post)
+    furhat_client.say("Hello", language="ENGLISH", gender="MALE")
+
+    body = json.loads(captured["data"].decode("utf-8"))
+    assert body["language"] == "ENGLISH"
+    assert body["gender"] == "MALE"
+
+
+def test_react_includes_language_and_gender_when_given(monkeypatch):
+    captured = {}
+
+    def fake_post(url, data=None, headers=None, timeout=None):
+        captured["data"] = data
+        return _FakeResponse(200)
+
+    monkeypatch.setattr(furhat_client.requests, "post", fake_post)
+    furhat_client.react("HAPPINESS", 2, language="HEBREW", gender="FEMALE")
+
+    body = json.loads(captured["data"].decode("utf-8"))
+    assert body["language"] == "HEBREW"
+    assert body["gender"] == "FEMALE"
 
 
 def test_say_never_raises_on_connection_failure(monkeypatch):

@@ -19,14 +19,23 @@ import config
 TIMEOUT = 2.0  # seconds -- same budget robot_bridge.py uses
 
 
-def say(text: str) -> dict:
-    return _post("/say", {"text": text})
+def say(text: str, language: str = None, gender: str = None) -> dict:
+    payload = {"text": text}
+    if language:
+        payload["language"] = language
+    if gender:
+        payload["gender"] = gender
+    return _post("/say", payload)
 
 
-def react(emotion: str, intensity: int, text: str = None) -> dict:
+def react(emotion: str, intensity: int, text: str = None, language: str = None, gender: str = None) -> dict:
     payload = {"emotion": emotion, "intensity": intensity}
     if text:
         payload["text"] = text
+    if language:
+        payload["language"] = language
+    if gender:
+        payload["gender"] = gender
     return _post("/react", payload)
 
 
