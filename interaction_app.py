@@ -130,7 +130,10 @@ elif PAGE == "שיחה חיה":
                 if st.session_state.last_announced != (st.session_state.question_index, "interview"):
                     with st.chat_message("assistant"):
                         st.write(q["text"])
-                    furhat_client.say(q["text"])
+                    sent = furhat_client.say(q["text"])
+                    if not sent["sent"]:
+                        interaction_log.log_technical("robot", 0, error=sent["reason"])
+                        st.warning(f"הרובוט לא הגיב: {sent['reason']}")
                     st.session_state.transcript.append({"role": "assistant", "text": q["text"]})
                     st.session_state.last_announced = (st.session_state.question_index, "interview")
 
@@ -246,7 +249,10 @@ elif PAGE == "שיחה חיה":
                 if st.session_state.last_announced != (st.session_state.question_index, "pe"):
                     with st.chat_message("assistant"):
                         st.write(pe_question)
-                    furhat_client.say(pe_question)
+                    sent = furhat_client.say(pe_question)
+                    if not sent["sent"]:
+                        interaction_log.log_technical("robot", 0, error=sent["reason"])
+                        st.warning(f"הרובוט לא הגיב: {sent['reason']}")
                     st.session_state.transcript.append({"role": "assistant", "text": pe_question})
                     st.session_state.last_announced = (st.session_state.question_index, "pe")
 
