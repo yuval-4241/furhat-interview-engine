@@ -46,3 +46,30 @@ def test_model_for_session_falls_back_when_key_missing(fake):
     m = fake.add("LLMModel", engine_key="llama3.1-8b", display_name="Llama", active=False)
     assert model_registry.model_for_session({"llm_model": m["id"]}) == model_registry.config.MODEL_DEFAULT
     assert model_registry.model_for_session({}) == model_registry.config.MODEL_DEFAULT
+
+
+def test_model_for_session_base44_error_falls_back_and_is_cached(fake, monkeypatch, capsys):
+    calls = []
+
+    def boom(entity, record_id):
+        calls.append(record_id)
+        raise model_registry.b44.Base44Error("404")
+
+    monkeypatch.setattr(fake, "get_record", boom)
+
+    for _ in range(2):
+        assert model_registry.model_for_session({"llm_model": "gone"}) == model_registry.config.MODEL_DEFAULT
+
+    assert calls == ["gone"]
+    assert capsys.readouterr().out.count("unavailable") == 1
+
+
+def test_model_for_session_rate_limit_propagates(fake, monkeypatch):
+    def limited(entity, record_id):
+        raise model_registry.b44.RateLimited("429")
+
+    monkeypatch.setattr(fake, "get_record", limited)
+
+    with pytest.raises(model_registry.b44.RateLimited):
+        model_registry.model_for_session({"llm_model": "x"})
+    assert "x" not in model_registry._engine_key_cache

@@ -31,10 +31,15 @@ def model_for_session(session: dict) -> str:
     if not model_id:
         return config.MODEL_DEFAULT
     if model_id not in _engine_key_cache:
-        rec = b44.get_record("LLMModel", model_id)
-        _engine_key_cache[model_id] = rec.get("engine_key") if rec.get("active") else None
-    key = _engine_key_cache[model_id]
-    if key not in config.LLM_MODELS:
-        print(f"[model_registry] session model {model_id!r} unavailable — using {config.MODEL_DEFAULT}")
-        return config.MODEL_DEFAULT
-    return key
+        try:
+            rec = b44.get_record("LLMModel", model_id)
+            key = rec.get("engine_key") if rec.get("active") else None
+        except b44.RateLimited:
+            raise
+        except b44.Base44Error:
+            key = None  # e.g. the model record was deleted; cache it so we don't retry every poll
+        if key not in config.LLM_MODELS:
+            key = None
+            print(f"[model_registry] session model {model_id!r} unavailable — using {config.MODEL_DEFAULT}")
+        _engine_key_cache[model_id] = key
+    return _engine_key_cache[model_id] or config.MODEL_DEFAULT
