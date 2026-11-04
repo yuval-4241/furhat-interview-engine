@@ -39,6 +39,47 @@ def react(emotion: str, intensity: int, text: str = None, language: str = None, 
     return _post("/react", payload)
 
 
+def listen() -> dict:
+    """Blocks until the robot finishes listening (up to ~2.5 min). Never raises."""
+    payload = {
+        "timeout": config.LISTEN_TIMEOUT_MS,
+        "endSil": config.LISTEN_END_SIL_MS,
+        "maxSpeech": config.LISTEN_MAX_SPEECH_MS,
+    }
+    wait_s = (config.LISTEN_TIMEOUT_MS + config.LISTEN_MAX_SPEECH_MS) / 1000 + 40
+    try:
+        resp = requests.post(
+            f"{config.ROBOT_BRIDGE_BASE_URL}/listen",
+            data=json.dumps(payload).encode("utf-8"),
+            headers={"Content-Type": "application/json; charset=utf-8"},
+            timeout=wait_s,
+        )
+        resp.raise_for_status()
+        data = resp.json()
+        return {"status": data.get("status", "failed"), "text": data.get("text", "")}
+    except (requests.exceptions.RequestException, ConnectionError, ValueError):
+        return {"status": "failed", "text": ""}
+
+
+def set_persona(character: str = None, voice: str = None, language: str = None) -> dict:
+    """Switch the robot's face (Furhat character) and voice (Furhat voice name). Never raises."""
+    payload = {k: v for k, v in {"character": character, "voice": voice, "language": language}.items() if v}
+    try:
+        resp = requests.post(
+            f"{config.ROBOT_BRIDGE_BASE_URL}/persona",
+            data=json.dumps(payload, ensure_ascii=False).encode("utf-8"),
+            headers={"Content-Type": "application/json; charset=utf-8"},
+            timeout=20,
+        )
+        resp.raise_for_status()
+        data = resp.json()
+    except (requests.exceptions.RequestException, ConnectionError, ValueError) as e:
+        return {"sent": False, "reason": str(e)}
+    if data.get("status") != "ok":
+        return {"sent": False, "reason": data.get("message", "unknown error")}
+    return {"sent": True, "reason": None}
+
+
 def health_check() -> bool:
     try:
         resp = requests.get(f"{config.ROBOT_BRIDGE_BASE_URL}/health", timeout=TIMEOUT)

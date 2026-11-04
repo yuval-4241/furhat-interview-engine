@@ -1,5 +1,7 @@
 import json
 
+import requests
+
 import furhat_client
 
 
@@ -114,3 +116,60 @@ def test_health_check_false_on_connection_failure(monkeypatch):
 
     monkeypatch.setattr(furhat_client.requests, "get", fake_get)
     assert furhat_client.health_check() is False
+
+
+class _Resp:
+    def __init__(self, payload):
+        self._payload = payload
+
+    def raise_for_status(self):
+        pass
+
+    def json(self):
+        return self._payload
+
+
+def test_listen_returns_bridge_result(monkeypatch):
+    seen = {}
+
+    def fake_post(url, data=None, headers=None, timeout=None):
+        seen.update(url=url, body=json.loads(data), timeout=timeout)
+        return _Resp({"status": "ok", "text": "שלום"})
+
+    monkeypatch.setattr(furhat_client.requests, "post", fake_post)
+
+    assert furhat_client.listen() == {"status": "ok", "text": "שלום"}
+    assert seen["url"].endswith("/listen")
+    assert seen["body"] == {"timeout": 10000, "endSil": 3000, "maxSpeech": 120000}
+    assert seen["timeout"] > (10000 + 120000) / 1000  # HTTP wait covers the whole listen window
+
+
+def test_listen_timeout_returns_failed(monkeypatch):
+    def boom(*a, **k):
+        raise requests.exceptions.ReadTimeout("slow")
+
+    monkeypatch.setattr(furhat_client.requests, "post", boom)
+
+    assert furhat_client.listen() == {"status": "failed", "text": ""}
+
+
+def test_set_persona_sends_raw_utf8(monkeypatch):
+    seen = {}
+
+    def fake_post(url, data=None, headers=None, timeout=None):
+        seen["raw"] = data
+        return _Resp({"status": "ok"})
+
+    monkeypatch.setattr(furhat_client.requests, "post", fake_post)
+
+    assert furhat_client.set_persona("Isabel", "Asaf", "he") == {"sent": True, "reason": None}
+    assert "Asaf".encode() in seen["raw"] and "\\u" not in seen["raw"].decode("utf-8")
+
+
+def test_set_persona_bridge_error_is_reported(monkeypatch):
+    monkeypatch.setattr(furhat_client.requests, "post",
+                        lambda *a, **k: _Resp({"status": "error", "message": "voice 'Asf': not found"}))
+
+    result = furhat_client.set_persona("Isabel", "Asf", "he")
+
+    assert result["sent"] is False and "Asf" in result["reason"]

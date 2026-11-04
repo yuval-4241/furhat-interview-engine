@@ -95,3 +95,26 @@ ROBOT_REACTION_ENABLED = os.environ.get("ROBOT_REACTION_ENABLED", "false").lower
 ROBOT_BRIDGE_URL = "http://localhost:8765/react"
 ROBOT_BRIDGE_TIMEOUT = 2.0  # seconds — never let a dead robot connection stall the pipeline
 ROBOT_BRIDGE_BASE_URL = "http://localhost:8765"
+LISTEN_TIMEOUT_MS = 10000
+LISTEN_END_SIL_MS = 3000
+LISTEN_MAX_SPEECH_MS = 120000
+
+# ── Base44 lab app (frontend + DB the Engine polls) ─────────────────────────
+# The app never calls the Engine; the Engine polls entities through the REST
+# API and writes back. Token is a Base44 personal access token — env only.
+BASE44_BASE_URL = "https://app.base44.com/api/apps"
+BASE44_APP_ID = os.environ.get("BASE44_APP_ID", "")
+BASE44_API_TOKEN = os.environ.get("BASE44_API_TOKEN", "")
+BASE44_TIMEOUT = 10.0  # seconds
+
+# engine_worker.py polling — light on purpose: runs on the researcher's laptop
+ENGINE_VERSION = "0.1-mvp"
+# Base44 allows 70 list requests/min per caller, and the worker's personal
+# token shares that budget with the researcher's open browser tab. One poll
+# costs ~3 list requests, so 6s keeps the worker near 30/min.
+WORKER_POLL_ACTIVE = 6.0       # seconds between polls while a Session is Running
+WORKER_POLL_IDLE = 20.0        # seconds between polls otherwise
+WORKER_HEARTBEAT_EVERY = 20.0  # app shows "Engine unavailable" after 60s without one
+WORKER_BACKOFF_START = 15.0    # first wait after a Base44 429, doubled each time in a row
+WORKER_BACKOFF_MAX = 120.0
+ROBOT_WAIT_SECONDS = 60.0      # how long a pending RobotCommand waits for the robot before error
