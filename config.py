@@ -30,6 +30,32 @@ else:
 
 MODEL = MODEL_DEFAULT
 
+# ════════════════════════════════════════════════════════════════════════════
+# ▶▶ ADD NEW LLM MODELS HERE ◀◀
+#
+# 1. If the model's provider isn't in LLM_PROVIDERS yet, add it (any
+#    OpenAI-compatible API: base_url + the env var holding its key).
+# 2. Put the key in .env under that env var name (never in this file).
+# 3. Add the model to LLM_MODELS: engine_key -> provider + display name.
+#    The engine_key is the exact model id the provider expects.
+# 4. Restart engine_worker.py: it syncs this list to the website's LLMModel
+#    entity, so the model shows up in the New Session dropdown automatically
+#    (models whose key is missing are shown as inactive).
+# Never add 70B+ models (CLAUDE.md).
+# ════════════════════════════════════════════════════════════════════════════
+LLM_PROVIDERS = {
+    "lab":    {"base_url": LAB_LLM_BASE_URL, "api_key_env": "LAB_LLM_TOKEN"},
+    "openai": {"base_url": None,             "api_key_env": "OPENAI_API_KEY"},
+    # e.g. "groq": {"base_url": "https://api.groq.com/openai/v1", "api_key_env": "GROQ_API_KEY"},
+}
+
+LLM_MODELS = {
+    "llama3.1-8b":  {"provider": "lab",    "display_name": "Llama 3.1 8B (fast)"},
+    "gpt-oss-20b":  {"provider": "lab",    "display_name": "GPT-OSS 20B (default)"},
+    "dictalm3-12b": {"provider": "lab",    "display_name": "DictaLM 3 12B (Hebrew)"},
+    "gpt-4o-mini":  {"provider": "openai", "display_name": "GPT-4o mini"},
+}
+
 # ── VA Matrix (3x3) — must match your thesis's response bank structure ────
 VALENCE_LEVELS = ["low", "medium", "high"]
 AROUSAL_LEVELS = ["low", "medium", "high"]
