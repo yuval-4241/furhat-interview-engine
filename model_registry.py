@@ -33,13 +33,16 @@ def model_for_session(session: dict) -> str:
     if model_id not in _engine_key_cache:
         try:
             rec = b44.get_record("LLMModel", model_id)
-            key = rec.get("engine_key") if rec.get("active") else None
         except b44.RateLimited:
             raise
-        except b44.Base44Error:
-            key = None  # e.g. the model record was deleted; cache it so we don't retry every poll
-        if key not in config.LLM_MODELS:
+        except b44.Base44Error as e:
+            # can't tell a deleted record from a 5xx/timeout, so treat it as transient: don't cache
+            print(f"[model_registry] session model {model_id!r} lookup failed ({e}) — using {config.MODEL_DEFAULT}")
+            return config.MODEL_DEFAULT
+        key = rec.get("engine_key")
+        if not (rec.get("active") and key in config.LLM_MODELS
+                and llm_client.provider_has_key(config.LLM_MODELS[key]["provider"])):
             key = None
             print(f"[model_registry] session model {model_id!r} unavailable — using {config.MODEL_DEFAULT}")
-        _engine_key_cache[model_id] = key
+        _engine_key_cache[model_id] = key  # definitive answer; warn once
     return _engine_key_cache[model_id] or config.MODEL_DEFAULT

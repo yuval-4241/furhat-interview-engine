@@ -221,8 +221,8 @@ def test_apply_persona_once_per_session(fake, monkeypatch):
                         lambda character, voice, language: calls.append((character, voice, language))
                         or {"sent": True, "reason": None})
 
-    engine_worker.apply_persona(session)
-    engine_worker.apply_persona(session)
+    engine_worker.apply_persona(session, True)
+    engine_worker.apply_persona(session, True)
 
     assert calls == [("Isabel", "Asaf", "he")]
 
@@ -233,7 +233,7 @@ def test_apply_persona_skips_non_live(fake, monkeypatch):
     monkeypatch.setattr(engine_worker.furhat_client, "set_persona",
                         lambda *a: pytest.fail("no robot in Simulation"))
 
-    engine_worker.apply_persona(session)
+    engine_worker.apply_persona(session, True)
 
 
 def test_apply_persona_base44_error_is_logged_and_not_retried(fake, monkeypatch):
@@ -247,7 +247,7 @@ def test_apply_persona_base44_error_is_logged_and_not_retried(fake, monkeypatch)
     monkeypatch.setattr(engine_worker.furhat_client, "set_persona",
                         lambda *a: pytest.fail("persona unknown, nothing to send"))
 
-    engine_worker.apply_persona(session)
+    engine_worker.apply_persona(session, True)
 
     assert session["id"] in engine_worker._personas_applied
 
@@ -262,5 +262,46 @@ def test_apply_persona_rate_limit_propagates(fake, monkeypatch):
     monkeypatch.setattr(fake, "get_record", limited)
 
     with pytest.raises(engine_worker.b44.RateLimited):
-        engine_worker.apply_persona(session)
+        engine_worker.apply_persona(session, True)
     assert session["id"] not in engine_worker._personas_applied
+
+
+def test_apply_persona_robot_down_is_not_marked_then_sent_when_up(fake, monkeypatch):
+    persona = fake.add("Persona", furhat_face="Isabel", furhat_voice="Asaf")
+    session = fake.add("Session", status="Running", mode="Live", language="he", persona=persona["id"])
+    calls = []
+    monkeypatch.setattr(engine_worker, "_personas_applied", set())
+    monkeypatch.setattr(engine_worker.furhat_client, "set_persona",
+                        lambda *a: calls.append(a) or {"sent": True, "reason": None, "bridge_error": False})
+
+    engine_worker.apply_persona(session, False)
+    assert calls == [] and session["id"] not in engine_worker._personas_applied
+
+    engine_worker.apply_persona(session, True)
+    assert len(calls) == 1 and session["id"] in engine_worker._personas_applied
+
+
+def test_apply_persona_connection_failure_is_retried(fake, monkeypatch):
+    session = fake.add("Session", status="Running", mode="Live")
+    calls = []
+    monkeypatch.setattr(engine_worker, "_personas_applied", set())
+    monkeypatch.setattr(engine_worker.furhat_client, "set_persona",
+                        lambda *a: calls.append(a) or {"sent": False, "reason": "refused", "bridge_error": False})
+
+    engine_worker.apply_persona(session, True)
+    engine_worker.apply_persona(session, True)
+
+    assert len(calls) == 2 and session["id"] not in engine_worker._personas_applied
+
+
+def test_apply_persona_bridge_error_is_not_retried(fake, monkeypatch):
+    session = fake.add("Session", status="Running", mode="Live")
+    calls = []
+    monkeypatch.setattr(engine_worker, "_personas_applied", set())
+    monkeypatch.setattr(engine_worker.furhat_client, "set_persona",
+                        lambda *a: calls.append(a) or {"sent": False, "reason": "bad voice", "bridge_error": True})
+
+    engine_worker.apply_persona(session, True)
+    engine_worker.apply_persona(session, True)
+
+    assert len(calls) == 1 and session["id"] in engine_worker._personas_applied

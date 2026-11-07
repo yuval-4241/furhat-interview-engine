@@ -162,7 +162,7 @@ def test_set_persona_sends_raw_utf8(monkeypatch):
 
     monkeypatch.setattr(furhat_client.requests, "post", fake_post)
 
-    assert furhat_client.set_persona("Isabel", "Asaf", "he") == {"sent": True, "reason": None}
+    assert furhat_client.set_persona("Isabel", "Asaf", "he") == {"sent": True, "reason": None, "bridge_error": False}
     assert "Asaf".encode() in seen["raw"] and "\\u" not in seen["raw"].decode("utf-8")
 
 
@@ -173,3 +173,29 @@ def test_set_persona_bridge_error_is_reported(monkeypatch):
     result = furhat_client.set_persona("Isabel", "Asf", "he")
 
     assert result["sent"] is False and "Asf" in result["reason"]
+    assert result["bridge_error"] is True  # the bridge answered, so retrying is pointless
+
+
+def test_set_persona_connection_failure_is_not_a_bridge_error(monkeypatch):
+    def boom(*a, **k):
+        raise requests.exceptions.ConnectionError("refused")
+
+    monkeypatch.setattr(furhat_client.requests, "post", boom)
+
+    result = furhat_client.set_persona("Isabel", "Asaf", "he")
+
+    assert result["sent"] is False and result["bridge_error"] is False
+
+
+def test_set_persona_non_dict_json_is_not_sent(monkeypatch):
+    monkeypatch.setattr(furhat_client.requests, "post", lambda *a, **k: _Resp(["oops"]))
+
+    result = furhat_client.set_persona("Isabel", "Asaf", "he")
+
+    assert result["sent"] is False and result["bridge_error"] is False
+
+
+def test_listen_non_dict_json_returns_failed(monkeypatch):
+    monkeypatch.setattr(furhat_client.requests, "post", lambda *a, **k: _Resp(None))
+
+    assert furhat_client.listen() == {"status": "failed", "text": ""}

@@ -56,13 +56,19 @@ def listen() -> dict:
         )
         resp.raise_for_status()
         data = resp.json()
+        if not isinstance(data, dict):
+            return {"status": "failed", "text": ""}
         return {"status": data.get("status", "failed"), "text": data.get("text", "")}
     except (requests.exceptions.RequestException, ConnectionError, ValueError):
         return {"status": "failed", "text": ""}
 
 
 def set_persona(character: str = None, voice: str = None, language: str = None) -> dict:
-    """Switch the robot's face (Furhat character) and voice (Furhat voice name). Never raises."""
+    """Switch the robot's face (Furhat character) and voice (Furhat voice name). Never raises.
+
+    bridge_error is True only when the bridge answered but refused (e.g. unknown voice) -- retrying
+    won't help. A connection failure leaves it False so the caller can retry later.
+    """
     payload = {k: v for k, v in {"character": character, "voice": voice, "language": language}.items() if v}
     try:
         resp = requests.post(
@@ -74,10 +80,12 @@ def set_persona(character: str = None, voice: str = None, language: str = None) 
         resp.raise_for_status()
         data = resp.json()
     except (requests.exceptions.RequestException, ConnectionError, ValueError) as e:
-        return {"sent": False, "reason": str(e)}
+        return {"sent": False, "reason": str(e), "bridge_error": False}
+    if not isinstance(data, dict):
+        return {"sent": False, "reason": "unexpected bridge response", "bridge_error": False}
     if data.get("status") != "ok":
-        return {"sent": False, "reason": data.get("message", "unknown error")}
-    return {"sent": True, "reason": None}
+        return {"sent": False, "reason": data.get("message", "unknown error"), "bridge_error": True}
+    return {"sent": True, "reason": None, "bridge_error": False}
 
 
 def health_check() -> bool:

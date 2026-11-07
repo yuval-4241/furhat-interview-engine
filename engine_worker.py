@@ -229,9 +229,11 @@ def check_pe(turn: dict, session: dict) -> None:
 
 # ── Persona ─────────────────────────────────────────────────────────────────
 
-def apply_persona(session: dict) -> None:
-    """Send the session's Persona face + voice to the robot, once per session."""
-    if session.get("mode") != "Live" or session["id"] in _personas_applied:
+def apply_persona(session: dict, robot_connected: bool) -> None:
+    """Send the session's Persona face + voice to the robot, once per session.
+
+    Not marked applied while the robot is unreachable, so it is retried on a later poll."""
+    if session.get("mode") != "Live" or session["id"] in _personas_applied or not robot_connected:
         return
     persona = {}
     if session.get("persona"):
@@ -248,7 +250,8 @@ def apply_persona(session: dict) -> None:
                                        session.get("language"))
     if not result["sent"]:
         _log(f"Session {session.get('session_code')}: persona not applied: {result['reason']}")
-    _personas_applied.add(session["id"])
+    if result["sent"] or result.get("bridge_error"):
+        _personas_applied.add(session["id"])  # a bridge refusal (bad voice name) won't fix itself
 
 
 # ── Main loop ───────────────────────────────────────────────────────────────
@@ -257,7 +260,11 @@ def poll_once(robot_connected: bool) -> bool:
     """One pass over all Running sessions. Returns True if any session is Running."""
     sessions = {s["id"]: s for s in b44.list_records("Session", {"status": "Running"})}
 
-    # Robot commands first, in order. Only for Running Live sessions — never replay a closed session's backlog.
+    # Persona before any command, so a restarted worker re-applies it before speaking.
+    for session in sessions.values():
+        apply_persona(session, robot_connected)
+
+    # Robot commands next, in order. Only for Running Live sessions — never replay a closed session's backlog.
     pending = b44.list_records("RobotCommand", {"status": "pending"}, sort="sequence")
     for cmd in pending:
         session = sessions.get(cmd.get("session"))
@@ -272,7 +279,6 @@ def poll_once(robot_connected: bool) -> bool:
     handlers = {"awaiting_engine": process_turn, "awaiting_pe_check": check_pe,
                 "robot_reacting": react_turn}
     for session in sessions.values():
-        apply_persona(session)
         turns = b44.list_records("Turn", {"session": session["id"]}, sort="order")
         if not turns:
             ensure_turns(session)

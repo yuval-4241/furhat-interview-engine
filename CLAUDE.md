@@ -67,7 +67,7 @@ To add an LLM model: see the ▶▶ ADD NEW LLM MODELS HERE ◀◀ block in
 worker startup.
 
 ```bash
-# Run the automated test suite (141 tests: schemas, guardrail, consistency,
+# Run the automated test suite (149 tests: schemas, guardrail, consistency,
 # evaluator, graph routing, emotion classifier, robot-reaction bridge,
 # PE check, Base44 client, engine worker, model registry, Furhat client, ...)
 pytest tests/ -v
@@ -164,7 +164,7 @@ persona answer -> evaluator -> schema guard (retry once on failure)
   hand on experiment days (`python engine_worker.py`, Ctrl+C to stop):
   heartbeat, creating a Running session's 6 turns, `awaiting_engine` →
   proposal, `robot_reacting` → Furhat, `awaiting_pe_check` → `pe_check`.
-  Polls every 2 s while a session is Running, 10 s when idle. Contract,
+  Polls every `WORKER_POLL_ACTIVE` (6 s) while a session is Running, `WORKER_POLL_IDLE` (20 s) when idle. Contract,
   status machine, MVP shortcuts and open questions:
   `docs/superpowers/specs/2026-11-02-base44-lab-app-integration-design.md`.
 - **`model_registry.py`** — `sync_to_base44()` upserts `config.LLM_MODELS`
