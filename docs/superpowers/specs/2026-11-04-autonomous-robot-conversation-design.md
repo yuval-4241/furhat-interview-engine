@@ -40,6 +40,8 @@ Success criteria:
 | 11 | Near-synonyms | Same-family core words count as Correct. Words closer to another emotion the robot can show count as Partial | Shaver et al. 1987 prototype hierarchy. The robot also shows EXCITED and CALM |
 | 12 | Listening technology | Furhat's built-in ASR through a new `/listen` bridge endpoint ("approach 1") | Furhat already handles end-of-speech and not hearing itself. All logic stays in Python |
 | 13 | Skill structure | Split into two skills in one multi-module Gradle project that share one `EmotionLibrary` | The calibration study and the interview stop interfering with each other, and they can never show different faces |
+| 14 | Per-session face and voice | They come from the website `Persona` (`furhat_face` = Furhat character name, `furhat_voice` = Furhat voice name), applied once per Live session through `/persona`. Once set, `/say` and `/react` no longer override the voice | The researcher picks the persona on the website and the robot matches it, with no code change |
+| 15 | LLM model registry | `config.LLM_MODELS` is the single model registry, synced to the website `LLMModel` entity at worker startup | One place to add a model. The website's model list can never drift from what the Engine can actually call |
 
 Future idea, not in scope: a PE confidence rating ("כמה את/ה בטוח/ה, 1–5?")
 as a metacognition measure (Brewer et al. 2022).

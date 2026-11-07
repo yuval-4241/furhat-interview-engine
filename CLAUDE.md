@@ -29,7 +29,10 @@ unless it's explicitly turned on. See
   lab GPU server or OpenAI directly, switched by `LLM_PROVIDER`
 - Orchestration: LangGraph (`graph.py`)
 - Data analysis: pandas + scipy (`ab_test.py`)
-- Demo: Streamlit (not built yet)
+- Demo: Streamlit (`demo_app.py`, `interaction_app.py`)
+- Experiment website: "Furhat Interview Lab" on Base44 (frontend + DB only),
+  reached through its REST API via `base44_client.py` (`requests`, not the
+  npm `@base44/sdk`)
 
 ## Commands
 
@@ -38,6 +41,13 @@ unless it's explicitly turned on. See
 python -m venv venv && source venv/bin/activate
 pip install -r requirements.txt
 export LAB_LLM_TOKEN="your_token"        # or set LLM_PROVIDER=openai + OPENAI_API_KEY
+
+# .env is NOT auto-loaded by Python — load it into each new terminal
+# (holds BASE44_APP_ID / BASE44_API_TOKEN among others)
+set -a; source .env; set +a
+
+# Read-only check that the Base44 website connection works
+python -c "import base44_client as b; print(b.list_records('EngineHeartbeat'))"
 
 # Run one conversation through the full graph (prints final state as JSON)
 python graph.py
@@ -52,9 +62,14 @@ python ab_test.py --n 20
 python -c "import evaluator; print(evaluator.evaluate('Tell me about yourself', 'I have 5 years in QA.'))"
 ```
 
+To add an LLM model: see the ▶▶ ADD NEW LLM MODELS HERE ◀◀ block in
+`config.py` (`LLM_PROVIDERS` / `LLM_MODELS`). It is synced to the website at
+worker startup.
+
 ```bash
-# Run the automated test suite (67 tests: schemas, guardrail, consistency,
-# evaluator, graph routing, emotion classifier, robot-reaction bridge)
+# Run the automated test suite (141 tests: schemas, guardrail, consistency,
+# evaluator, graph routing, emotion classifier, robot-reaction bridge,
+# PE check, Base44 client, engine worker, model registry, Furhat client, ...)
 pytest tests/ -v
 ```
 
@@ -137,6 +152,38 @@ persona answer -> evaluator -> schema guard (retry once on failure)
   while speaking the reply. Opt-in via `config.ROBOT_REACTION_ENABLED`
   (default `False`); never raises — a disconnected/absent robot must never
   break the evaluation pipeline for a candidate.
+- **`base44_client.py`** — the only file that talks to the Base44
+  experiment website's REST API (`list_records`, `get_record`,
+  `create_record`, `update_record`, `claim`). The website is frontend + DB
+  only and never calls the Engine; the Engine polls entities by `status`
+  and writes back. `claim()` is a compare-and-set (`update-many` filtered on
+  `{id, status}`, success iff `updated == 1`) so two Engine instances can't
+  process the same Turn. Unlike `robot_bridge.py`, it raises `Base44Error`
+  — the polling worker must know a write failed.
+- **`engine_worker.py`** — MVP polling loop over the Base44 website, run by
+  hand on experiment days (`python engine_worker.py`, Ctrl+C to stop):
+  heartbeat, creating a Running session's 6 turns, `awaiting_engine` →
+  proposal, `robot_reacting` → Furhat, `awaiting_pe_check` → `pe_check`.
+  Polls every 2 s while a session is Running, 10 s when idle. Contract,
+  status machine, MVP shortcuts and open questions:
+  `docs/superpowers/specs/2026-11-02-base44-lab-app-integration-design.md`.
+- **`model_registry.py`** — `sync_to_base44()` upserts `config.LLM_MODELS`
+  into the website's `LLMModel` entity at worker startup (active = the
+  provider's API key is present; never deletes, deactivates removed models).
+  `model_for_session(session)` returns the session's chosen model, falling
+  back to `MODEL_DEFAULT` (warn once) if it is inactive, unknown, or Base44
+  errors; `RateLimited` propagates. `engine_worker.py` runs each session's
+  turns inside `llm_client.model_override(...)`.
+- **`furhat_client.py`** — `listen()` and `set_persona(character, voice,
+  language)` talk to the interview-skill bridge; like `robot_bridge.py` they
+  never raise. `engine_worker.py` applies the Persona's `furhat_face` /
+  `furhat_voice` once per Live session.
+- **`interview-skill`** (in the separate `furhat-emotion-study` repo, branch
+  `interview-skill`) — the Furhat skill to load for experiments. Hosts the
+  HTTP bridge on `localhost:8765` (`/say`, `/react`, `/listen`, `/persona`,
+  `/health`) and shares an `emotion-library` module with `EmotionSkill`
+  (calibration study only; no longer hosts the bridge). Build with
+  `interview-skill/rebuild.sh`.
 - **`question_bank.py`** — loads the 30-question interview set
   (`data/question_bank_seed.json`), organized into 5 sessions of 6 questions
   each, increasing in difficulty.
@@ -196,7 +243,9 @@ the doc's status table before assuming something described there exists.
   matters more than quality during iteration. Switch to `MODEL_DEFAULT`
   only for real test passes.
 - **Never use 70B+ models.** Too slow, blocks the shared GPU.
-- **Never commit `.env` or hardcode `LAB_LLM_TOKEN`/`OPENAI_API_KEY`.**
+- **Never commit `.env` or hardcode `LAB_LLM_TOKEN`/`OPENAI_API_KEY`/
+  `BASE44_API_TOKEN`/`BASE44_APP_ID`** — `config.py` reads them with
+  `os.environ.get(..., "")`, default always empty.
 - **Don't modify `config.NO_MASKING_FLAG_PATTERNS`, `PERSONAS`, or
   `EVALUATOR_SYSTEM_PROMPT_A`/`_B` without flagging it first** — these are
   thesis-methodology decisions, not code decisions.

@@ -41,6 +41,11 @@ the dataset for kappa/bias analysis in week 2.
 - [ ] `graph.py` — LangGraph wiring, not built yet
 - [ ] `run_demo.py` — batch runner, not built yet
 - [ ] `demo_app.py` — Streamlit demo, not built yet
+- [x] Base44 experiment website: contract agreed, `base44_client.py` built and verified read-only (2026-11-02)
+- [x] Base44 polling worker MVP (`engine_worker.py`) built; real end-to-end run with the robot still pending — see `docs/superpowers/specs/2026-11-02-base44-lab-app-integration-design.md`
+- [x] `interview-skill` (Furhat bridge: /say /react /listen /persona) and model registry built (2026-11-07); robot feasibility gate (plan Task 3) still pending
+- [ ] Autonomous robot conversation (robot listens, small talk, PE by voice) — design in progress, decisions so far in the same doc
+- [ ] Future idea: PE confidence rating ("כמה את/ה בטוח/ה, 1–5?") as a metacognition measure — see "Future ideas" in that doc
 
 ---
 
