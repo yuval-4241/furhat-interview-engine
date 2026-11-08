@@ -278,3 +278,146 @@ def test_dialogue_history_keeps_order_and_skips_empty_lines():
         ("robot", flow.PE_QUESTION), ("participant", "PE2"), ("robot", "FB2"),
         ("robot", "Q3"),
     ]
+
+
+PROPOSAL = {"target_emotion": "HAPPINESS", "intensity": 2, "proposed_reply": "איזה יופי",
+            "evaluation_category": "GOOD", "pe_answer_why": "הצלחתי בפרויקט"}
+
+
+def pbdi_turn(store, session, **fields):
+    return store.add("Turn", session=session["id"], order=1, phase="Main", category=flow.PBDI_CATEGORY,
+                     question_text="ספר/י על הצלחה", **fields)
+
+
+def test_pbdi_answer_stops_for_approval(fake, monkeypatch):
+    s = live_session(fake)
+    t = pbdi_turn(fake, s, status="queued")
+    robot = use_robot(monkeypatch, FakeRobot(heard=[heard("הצלחתי בפרויקט")]))
+    calls = []
+
+    assert run(fake, s, t, propose=lambda q, a, mode: calls.append((q, a, mode)) or dict(PROPOSAL)) is False
+
+    saved = fake.get("Turn", t["id"])
+    assert fake.statuses(t["id"]) == ["robot_speaking", "listening", "engine_processing", "awaiting_approval"]
+    assert calls == [("ספר/י על הצלחה", "הצלחתי בפרויקט", "Live")]
+    assert saved["target_emotion"] == "HAPPINESS" and saved["engine_model"]
+    assert robot.said() == ["ספר על הצלחה"]  # no acknowledgement for PBDI; spoken form is rendered
+
+
+def test_pbdi_llm_failure_retries_once_then_engine_error(fake, monkeypatch):
+    s = live_session(fake)
+    t = pbdi_turn(fake, s, status="engine_processing", participant_answer="תשובה")
+    use_robot(monkeypatch, FakeRobot())
+    calls = []
+
+    def boom(q, a, mode):
+        calls.append(1)
+        raise TimeoutError("LLM down")
+
+    assert run(fake, s, t, propose=boom) is False
+
+    saved = fake.get("Turn", t["id"])
+    assert len(calls) == 2
+    assert "LLM down" in saved["engine_error"]
+    assert saved["status"] == "engine_processing"
+
+
+def test_pbdi_llm_failure_once_then_success(fake, monkeypatch):
+    s = live_session(fake)
+    t = pbdi_turn(fake, s, status="engine_processing", participant_answer="תשובה")
+    use_robot(monkeypatch, FakeRobot())
+    replies = [TimeoutError("blip"), dict(PROPOSAL)]
+
+    def flaky(q, a, mode):
+        reply = replies.pop(0)
+        if isinstance(reply, Exception):
+            raise reply
+        return reply
+
+    run(fake, s, t, propose=flaky)
+    assert fake.get("Turn", t["id"])["status"] == "awaiting_approval"
+
+
+def test_approved_reaction_then_pe_question_then_grade(fake, monkeypatch):
+    s = live_session(fake)
+    t = pbdi_turn(fake, s, status="robot_reacting", participant_answer="תשובה", final_reply="איזה יופי!",
+                  target_emotion="HAPPINESS", intensity=2, pe_answer_why="הצלחתי בפרויקט")
+    robot = use_robot(monkeypatch, FakeRobot(heard=[heard("התלהבת")]))
+    monkeypatch.setattr(flow.pe_check, "grade_pe_answer",
+                        lambda target, answer: {"result": "Partial", "explanation": "קרוב"})
+    monkeypatch.setattr(flow.pe_feedback, "generate_feedback",
+                        lambda target, question, answer, guess, result, language="he", *genders:
+                        {"line": f"{target}/{answer}/{guess}/{result}", "reason": "סיפרת שהצלחת"})
+
+    assert run(fake, s, t) is False
+
+    saved = fake.get("Turn", t["id"])
+    assert robot.calls == [("react", "HAPPINESS", 2, "איזה יופי!"), ("say", flow.PE_QUESTION), ("listen",)]
+    assert fake.statuses(t["id"]) == ["pe_listening", "engine_processing", "awaiting_feedback"]
+    assert saved["robot_line"] == "איזה יופי!"
+    assert saved["participant_pe_answer"] == "התלהבת"
+    assert saved["pe_result"] == "Partial" and saved["pe_explanation"] == "קרוב"
+    assert saved["proposed_feedback"] == "HAPPINESS/תשובה/התלהבת/Partial"
+    assert saved["pe_answer_why"] == "סיפרת שהצלחת"
+    [cmd] = fake.list_records("RobotCommand", {"turn": t["id"]})
+    assert cmd["status"] == "done" and cmd["emotion"] == "HAPPINESS" and cmd["text"] == "איזה יופי!"
+
+
+def test_silent_pe_answer_skips_turn(fake, monkeypatch):
+    s = live_session(fake)
+    t = pbdi_turn(fake, s, status="robot_reacting", proposed_reply="יופי", target_emotion="CALM", intensity=1)
+    robot = use_robot(monkeypatch, FakeRobot())
+
+    assert run(fake, s, t) is True
+
+    saved = fake.get("Turn", t["id"])
+    assert saved["status"] == "skipped" and saved["skip_reason"] == "pe_no_answer"
+    assert robot.said() == [flow.PE_QUESTION, flow.PE_QUESTION]
+    assert fake.list_records("RobotCommand", {"turn": t["id"]})[0]["status"] == "done"
+
+
+def test_reaction_fails_when_robot_drops(fake, monkeypatch):
+    s = live_session(fake)
+    t = pbdi_turn(fake, s, status="robot_reacting", final_reply="יופי", target_emotion="FEAR", intensity=3)
+    use_robot(monkeypatch, FakeRobot(connected=False))
+
+    assert run(fake, s, t) is False
+
+    saved = fake.get("Turn", t["id"])
+    assert saved["engine_error"] == "robot disconnected" and saved["status"] == "robot_reacting"
+    assert fake.list_records("RobotCommand", {"turn": t["id"]})[0]["status"] == "error"
+
+
+def test_pe_grading_failure_sets_engine_error(fake, monkeypatch):
+    s = live_session(fake)
+    t = pbdi_turn(fake, s, status="engine_processing", participant_answer="תשובה",
+                  participant_pe_answer="שמחת", target_emotion="HAPPINESS")
+    use_robot(monkeypatch, FakeRobot())
+
+    def boom(target, answer):
+        raise TimeoutError("LLM down")
+
+    monkeypatch.setattr(flow.pe_check, "grade_pe_answer", boom)
+
+    assert run(fake, s, t) is False
+    assert "LLM down" in fake.get("Turn", t["id"])["engine_error"]
+
+
+def test_approved_feedback_is_spoken_then_done(fake, monkeypatch):
+    s = live_session(fake)
+    t = pbdi_turn(fake, s, status="robot_feedback", proposed_feedback="הצעה", final_feedback="בעצם הרגשתי רוגע.")
+    robot = use_robot(monkeypatch, FakeRobot())
+
+    assert run(fake, s, t) is True
+
+    assert robot.said() == ["בעצם הרגשתי רוגע."]
+    assert fake.get("Turn", t["id"])["status"] == "done"
+
+
+def test_waiting_for_approval_does_nothing(fake, monkeypatch):
+    s = live_session(fake)
+    t = pbdi_turn(fake, s, status="awaiting_feedback")
+    robot = use_robot(monkeypatch, FakeRobot())
+
+    assert run(fake, s, t) is False
+    assert robot.calls == []

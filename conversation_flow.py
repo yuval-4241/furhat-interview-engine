@@ -25,6 +25,8 @@ import config
 import furhat_client
 import hebrew_gender
 import llm_client
+import pe_check
+import pe_feedback
 import small_talk
 from worker_common import WORKER_ID, log, now
 
@@ -187,10 +189,29 @@ def _listen_answer(turn, session, turns, propose):
     return _update(turn, participant_answer=text, answer_submitted_at=now(), status="engine_processing")
 
 
+def _with_one_retry(call):
+    """Spec "Error handling": an LLM step is retried once before the researcher sees engine_error."""
+    try:
+        return call()
+    except Exception:
+        return call()
+
+
+def _fail(turn: dict, error: Exception) -> dict:
+    log(f"Turn {turn.get('order')}: {type(error).__name__}: {error}")
+    return _update(turn, engine_error=f"{type(error).__name__}: {error}")
+
+
 def _process(turn, session, turns, propose):
-    """engine_processing: small talk is done (the next line is the reply); Main turns get an acknowledgement."""
+    """engine_processing, three cases: after the PE answer (grade + feedback); after a
+    small-talk answer (done: the next line is the reply); after a Main answer (PBDI
+    proposal for approval, or a content-only acknowledgement)."""
+    if turn.get("participant_pe_answer"):
+        return _grade_pe(turn, session)
     if turn.get("generated_by_engine"):
         return _update(turn, status="done", done_at=now())
+    if turn.get("category") == PBDI_CATEGORY:
+        return _propose(turn, session, propose)
     ack = acknowledgement.acknowledge(turn.get("question_text", ""), turn["participant_answer"],
                                       session.get("language", "he"), session.get("participant_gender"),
                                       session.get("robot_gender"))
@@ -199,10 +220,77 @@ def _process(turn, session, turns, propose):
                    status="robot_speaking")
 
 
+def _propose(turn, session, propose):
+    """PBDI: evaluator + emotion + reply, then wait for the researcher's Approve."""
+    try:
+        proposal = _with_one_retry(
+            lambda: propose(turn.get("question_text", ""), turn["participant_answer"], session.get("mode")))
+    except Exception as e:  # after one retry: engine_error, and the researcher's Retry re-runs this step
+        return _fail(turn, e)
+    log(f"Turn {turn.get('order')}: proposed {proposal.get('target_emotion')} ({proposal.get('intensity')})")
+    return _update(turn, **proposal, engine_model=llm_client.current_model(), engine_error="",
+                   engine_responded_at=now(), status="awaiting_approval")
+
+
+def _react(turn, session, turns, propose):
+    """robot_reacting (set by the researcher's Approve): emotion + reply, then the fixed PE question."""
+    text = turn.get("final_reply") or turn.get("proposed_reply", "")
+    count = len(b44.list_records("RobotCommand", {"session": session["id"]}, limit=1000))
+    cmd = b44.create_record("RobotCommand", {
+        "session": session["id"], "turn": turn["id"], "sequence": count + 1,
+        "type": "say_with_gesture", "text": text, "emotion": turn.get("target_emotion"),
+        "intensity": turn.get("intensity"), "language": session.get("language", "he"),
+        "status": "sent", "sent_at": now(),
+    })
+    result = furhat_client.react(turn["target_emotion"], int(turn["intensity"]), text=text,
+                                 language=session.get("language"))
+    if not result["sent"]:
+        b44.update_record("RobotCommand", cmd["id"], {"status": "error", "error_message": result["reason"]})
+        raise RobotDown()
+    b44.update_record("RobotCommand", cmd["id"], {"status": "done", "completed_at": now()})
+    _say(PE_QUESTION, session)
+    return _update(turn, robot_line=text, status="pe_listening")
+
+
+def _listen_pe(turn, session, turns, propose):
+    """pe_listening: the participant's guess. Silence/bad ASR skips the turn (plan decision P6)."""
+    text, skip_reason = _listen_for(PE_QUESTION, session)
+    if skip_reason:
+        return _skip(turn, f"pe_{skip_reason}")
+    return _update(turn, participant_pe_answer=text, pe_submitted_at=now(), status="engine_processing")
+
+
+def _grade_pe(turn, session):
+    """Correct/Partial/Wrong + the feedback line, then wait for the researcher's Approve."""
+    try:
+        graded = _with_one_retry(
+            lambda: pe_check.grade_pe_answer(turn.get("target_emotion", ""), turn["participant_pe_answer"]))
+    except Exception as e:
+        return _fail(turn, e)
+    feedback = pe_feedback.generate_feedback(turn.get("target_emotion", ""), turn.get("question_text", ""),
+                                             turn.get("participant_answer", ""), turn["participant_pe_answer"],
+                                             graded["result"], session.get("language", "he"),
+                                             session.get("participant_gender"), session.get("robot_gender"))
+    log(f"Turn {turn.get('order')}: PE {graded['result']}")
+    return _update(turn, pe_result=graded["result"], pe_explanation=graded["explanation"],
+                   proposed_feedback=feedback["line"], pe_answer_why=feedback["reason"],
+                   engine_model=llm_client.current_model(),
+                   engine_responded_at=now(), status="awaiting_feedback")
+
+
+def _give_feedback(turn, session, turns, propose):
+    """robot_feedback (set by the researcher's Approve): the robot reveals what it felt."""
+    _say(turn.get("final_feedback") or turn.get("proposed_feedback", ""), session)
+    return _update(turn, status="done", done_at=now())
+
+
 _HANDLERS = {
     "queued": _start,
     "awaiting_answer": _start,
     "robot_speaking": _speak,
     "listening": _listen_answer,
     "engine_processing": _process,
+    "robot_reacting": _react,
+    "pe_listening": _listen_pe,
+    "robot_feedback": _give_feedback,
 }
