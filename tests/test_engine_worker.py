@@ -1,14 +1,16 @@
 import pytest
 
 import engine_worker
-from tests.fakes import FakeBase44
+from tests.fakes import FakeBase44, FakeRobot, heard
 
 
 @pytest.fixture
 def fake(monkeypatch):
     store = FakeBase44()
     monkeypatch.setattr(engine_worker, "b44", store)
+    monkeypatch.setattr(engine_worker.conversation_flow, "b44", store)
     monkeypatch.setattr(engine_worker, "_robot_wait_started", {})
+    monkeypatch.setattr(engine_worker.conversation_flow, "_robot_wait_started", {})
     monkeypatch.setattr(engine_worker, "_speech_context", {})
     return store
 
@@ -51,6 +53,7 @@ def test_process_turn_writes_proposal_and_moves_to_approval(fake, monkeypatch):
     assert saved["evaluation_category"] == "GOOD"
     assert saved["proposed_reply"]
     assert saved["guardrail_flag"] is False
+    assert saved["engine_model"] == engine_worker.llm_client.current_model()
 
 
 def test_process_turn_skips_turn_already_claimed(fake, monkeypatch):
@@ -92,27 +95,13 @@ def _fake_robot(monkeypatch):
     return sent
 
 
-def test_live_turn_reaction_is_sent_then_turn_advances(fake, monkeypatch):
-    session = fake.add("Session", status="Running", mode="Live", language="he")
-    turn = fake.add("Turn", session=session["id"], order=1, status="robot_reacting",
-                    final_reply="שלום", target_emotion="SADNESS", intensity=2)
-    sent = _fake_robot(monkeypatch)
-
-    engine_worker.poll_once(robot_connected=True)  # creates the command
-    engine_worker.poll_once(robot_connected=True)  # sends it, then advances the turn
-
-    assert sent == [("react", "SADNESS", 2, "שלום")]
-    cmd = fake.list_records("RobotCommand", {"turn": turn["id"]})
-    assert len(cmd) == 1 and cmd[0]["status"] == "done" and cmd[0]["sequence"] == 1
-    assert fake.get("Turn", turn["id"])["status"] == "awaiting_pe"
-
-
 def test_website_say_command_is_spoken(fake, monkeypatch):
     session = fake.add("Session", status="Running", mode="Live")
     fake.add("Turn", session=session["id"], order=1, status="awaiting_answer")
     cmd = fake.add("RobotCommand", session=session["id"], type="say", status="pending",
                    text="מה אתה עושה ביום חופשי?", sequence=1, language="he")
     sent = _fake_robot(monkeypatch)
+    monkeypatch.setattr(engine_worker.conversation_flow, "advance", lambda *a: False)
 
     engine_worker.poll_once(robot_connected=True)
 
@@ -146,7 +135,7 @@ def test_command_waits_for_robot_then_errors_after_timeout(fake, monkeypatch):
     assert fake.get("RobotCommand", cmd["id"])["status"] == "error"
 
 
-def test_react_turn_simulation_creates_no_robot_command(fake):
+def test_react_turn_moves_to_awaiting_pe(fake):
     session = fake.add("Session", status="Running", mode="Simulation")
     turn = fake.add("Turn", session=session["id"], order=1, status="robot_reacting")
 
@@ -316,3 +305,78 @@ def test_speech_context_base44_error_is_not_cached(fake, monkeypatch):
     assert engine_worker.speech_context(session) == {
         "participant_gender": None, "robot_gender": None, "participant_name": None}
     assert session["id"] not in engine_worker._speech_context
+
+
+def test_live_session_runs_turns_back_to_back(fake, monkeypatch):
+    session = fake.add("Session", status="Running", mode="Live", language="he")
+    t1 = fake.add("Turn", session=session["id"], order=1, phase="Opening", generated_by_engine=True,
+                  expects_answer=True, status="queued", question_text="")
+    t2 = fake.add("Turn", session=session["id"], order=2, phase="Closing", generated_by_engine=True,
+                  expects_answer=False, status="queued", question_text="")
+    robot = FakeRobot(heard=[heard("שלום")])
+    monkeypatch.setattr(engine_worker.conversation_flow, "furhat_client", robot)
+    monkeypatch.setattr(engine_worker.conversation_flow.small_talk, "generate_line",
+                        lambda *a, **k: "שורה")
+    monkeypatch.setattr(engine_worker, "_personas_applied", {session["id"]})
+
+    engine_worker.poll_once(robot_connected=True)
+
+    assert fake.get("Turn", t1["id"])["status"] == "done"
+    assert fake.get("Turn", t2["id"])["status"] == "done"
+
+
+def test_live_session_stops_between_turns_when_not_running(fake, monkeypatch):
+    session = fake.add("Session", status="Running", mode="Live")
+    fake.add("Turn", session=session["id"], order=1, status="queued")
+    fake.add("Turn", session=session["id"], order=2, status="queued")
+    advanced = []
+
+    def finish_and_pause(turn, s, turns, robot_connected, propose):
+        advanced.append(turn["order"])
+        fake.update_record("Turn", turn["id"], {"status": "done"})
+        fake.update_record("Session", session["id"], {"status": "Paused"})
+        return True
+
+    monkeypatch.setattr(engine_worker.conversation_flow, "advance", finish_and_pause)
+
+    engine_worker.run_live_session(session, robot_connected=True)
+
+    assert advanced == [1]
+
+
+def test_live_session_without_turns_waits_for_the_website(fake, monkeypatch):
+    session = fake.add("Session", status="Running", mode="Live")
+    monkeypatch.setattr(engine_worker, "_personas_applied", {session["id"]})
+
+    engine_worker.poll_once(robot_connected=True)
+
+    assert fake.list_records("Turn") == []
+
+
+def test_live_session_adds_speech_context(fake, monkeypatch):
+    participant = fake.add("Participant", gender="Female", first_name="דנה")
+    persona = fake.add("Persona", furhat_voice="AvriNeural")
+    session = fake.add("Session", status="Running", mode="Live", participant=participant["id"],
+                       persona=persona["id"])
+    fake.add("Turn", session=session["id"], order=1, status="queued")
+    seen = {}
+    monkeypatch.setattr(engine_worker.conversation_flow, "advance",
+                        lambda turn, s, turns, robot_connected, propose: seen.update(session=s) or False)
+
+    engine_worker.run_live_session(session, robot_connected=True)
+
+    assert seen["session"]["participant_gender"] == "female"
+    assert seen["session"]["robot_gender"] == "male"
+    assert seen["session"]["participant_name"] == "דנה"
+
+
+def test_live_session_passes_build_proposal(fake, monkeypatch):
+    session = fake.add("Session", status="Running", mode="Live")
+    fake.add("Turn", session=session["id"], order=1, status="queued")
+    seen = {}
+    monkeypatch.setattr(engine_worker.conversation_flow, "advance",
+                        lambda turn, s, turns, robot_connected, propose: seen.update(propose=propose) or False)
+
+    engine_worker.run_live_session(session, robot_connected=True)
+
+    assert seen["propose"] is engine_worker.build_proposal

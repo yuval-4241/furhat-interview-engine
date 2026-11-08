@@ -324,3 +324,21 @@ default which never reaches the last 2 personas)**
 2. Record the results in the spec.
 3. Then write Plan 2.
 
+---
+
+## 2026-11-08 — Plan 2: autonomous robot conversation built
+
+- Live sessions now run through `conversation_flow.py` (small talk,
+  questions, listening, reactions, PE, feedback) via
+  `engine_worker.run_live_session`; Simulation/Mock keep the typed-answer
+  flow. Each proposal records `engine_model`. Heartbeat is on its own thread.
+- Test suite: 235 passed, 5 skipped (smoke tests need `RUN_LLM_SMOKE=1`).
+
+**Open items:**
+- P3: the researcher must approve the masculine Hebrew guardrail forms
+  ("נשמע לחוץ", "נראה לחוץ", "נשמע בטוח", "ארוך מדי", "קצר מדי").
+- P11: the PE word lists and fallback lines await researcher review.
+
+**RESUME FROM HERE:** Task 11, the live check. Stop the skill, rebuild the
+`.skill` (`interview-skill/rebuild.sh`), load it, then run
+`python engine_worker.py` against a Live session with the robot.

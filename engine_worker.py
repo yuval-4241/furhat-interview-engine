@@ -2,9 +2,9 @@
 Engine worker — polls the Base44 experiment website and does all the work
 behind it (the website is frontend + DB only and never calls the Engine).
 
-MVP scope: prove the real end-to-end flow — the robot shows an emotion that
-fits the participant's answer. Deferred (see the design doc's open
-questions): expression_level, PE "Partial", proposed_feedback, question sets
+Live sessions are run by the robot itself through conversation_flow.py
+(small talk, questions, listening, reactions, PE). Simulation and Mock keep
+the typed-answer flow below. Still deferred: expression_level, question sets
 for Baseline/Post/Followup, English response bank, robot reset/stop.
 
 Run by hand on experiment days only, stop with Ctrl+C:
@@ -19,6 +19,7 @@ import time
 
 import base44_client as b44
 import config
+import conversation_flow
 import emotion_classifier
 import evaluator
 import furhat_client
@@ -157,6 +158,7 @@ def process_turn(turn: dict, session: dict) -> None:
     b44.update_record("Turn", turn["id"], {
         **proposal,
         "engine_error": "",
+        "engine_model": llm_client.current_model(),
         "status": "awaiting_approval",
         "engine_responded_at": _now(),
     })
@@ -165,31 +167,9 @@ def process_turn(turn: dict, session: dict) -> None:
 
 # ── robot_reacting -> awaiting_pe ───────────────────────────────────────────
 
-def _command_for(turn: dict, session: dict) -> dict:
-    existing = b44.list_records("RobotCommand", {"turn": turn["id"]}, limit=1)
-    if existing:
-        return existing[0]
-    count = len(b44.list_records("RobotCommand", {"session": session["id"]}, limit=1000))
-    return b44.create_record("RobotCommand", {
-        "session": session["id"],
-        "turn": turn["id"],
-        "sequence": count + 1,
-        "type": "say_with_gesture",
-        "text": turn.get("final_reply") or turn.get("proposed_reply", ""),
-        "emotion": turn.get("target_emotion"),
-        "intensity": turn.get("intensity"),
-        "language": session.get("language", "he"),
-        "status": "pending",
-    })
-
-
 def react_turn(turn: dict, session: dict) -> None:
-    """Create the turn's reaction command; advance the turn once execute_command() has finished it."""
-    if session.get("mode") != "Live":
-        b44.update_record("Turn", turn["id"], {"status": "awaiting_pe"})
-        return
-    if _command_for(turn, session).get("status") in ("done", "error"):
-        b44.update_record("Turn", turn["id"], {"status": "awaiting_pe"})
+    """Simulation/Mock: no robot, so the approved reaction just moves the turn on to the PE step."""
+    b44.update_record("Turn", turn["id"], {"status": "awaiting_pe"})
 
 
 def execute_command(cmd: dict, robot_connected: bool) -> None:
@@ -296,6 +276,22 @@ def speech_context(session: dict) -> dict:
     return context
 
 
+# ── Live sessions: the robot runs the conversation (conversation_flow.py) ──
+
+def run_live_session(session: dict, robot_connected: bool) -> None:
+    """Advance the session's current turn. When it finishes, start the next one right away,
+    unless the researcher paused or ended the session meanwhile (plan decision P9).
+    The flow reads the Hebrew genders from the session dict (plan decision P2)."""
+    session = {**session, **speech_context(session)}
+    while True:
+        turns = b44.list_records("Turn", {"session": session["id"]}, sort="order")
+        turn = conversation_flow.current_turn(turns)
+        if turn is None or not conversation_flow.advance(turn, session, turns, robot_connected, build_proposal):
+            return
+        if b44.get_record("Session", session["id"]).get("status") != "Running":
+            return
+
+
 # ── Main loop ───────────────────────────────────────────────────────────────
 
 def poll_once(robot_connected: bool) -> bool:
@@ -321,19 +317,27 @@ def poll_once(robot_connected: bool) -> bool:
     handlers = {"awaiting_engine": process_turn, "awaiting_pe_check": check_pe,
                 "robot_reacting": react_turn}
     for session in sessions.values():
-        turns = b44.list_records("Turn", {"session": session["id"]}, sort="order")
-        if not turns:
-            ensure_turns(session)
-            continue
         with llm_client.model_override(model_registry.model_for_session(session)):
-            for turn in turns:
-                try:
-                    if turn.get("status") in handlers:
-                        handlers[turn["status"]](turn, session)
-                except b44.RateLimited:
-                    raise
-                except b44.Base44Error as e:
-                    _log(f"Turn {turn.get('order')}: Base44 error: {e}")
+            try:
+                if session.get("mode") == "Live":
+                    run_live_session(session, robot_connected)
+                    continue
+                turns = b44.list_records("Turn", {"session": session["id"]}, sort="order")
+                if not turns:
+                    ensure_turns(session)
+                    continue
+                for turn in turns:
+                    try:
+                        if turn.get("status") in handlers:
+                            handlers[turn["status"]](turn, session)
+                    except b44.RateLimited:
+                        raise
+                    except b44.Base44Error as e:
+                        _log(f"Turn {turn.get('order')}: Base44 error: {e}")
+            except b44.RateLimited:
+                raise
+            except b44.Base44Error as e:
+                _log(f"Session {session.get('session_code')}: Base44 error: {e}")
     return bool(sessions)
 
 

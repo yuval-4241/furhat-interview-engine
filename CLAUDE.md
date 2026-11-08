@@ -67,10 +67,13 @@ To add an LLM model: see the ▶▶ ADD NEW LLM MODELS HERE ◀◀ block in
 worker startup.
 
 ```bash
-# Run the automated test suite (149 tests: schemas, guardrail, consistency,
+# Run the automated test suite (235 passed, 5 skipped: schemas, guardrail, consistency,
 # evaluator, graph routing, emotion classifier, robot-reaction bridge,
 # PE check, Base44 client, engine worker, model registry, Furhat client, ...)
 pytest tests/ -v
+
+# Real-LLM smoke tests (skipped unless RUN_LLM_SMOKE=1; needs a model key)
+RUN_LLM_SMOKE=1 pytest tests/test_llm_smoke.py -v
 ```
 
 Beyond the automated suite, end-to-end verification is also done by running
@@ -160,13 +163,34 @@ persona answer -> evaluator -> schema guard (retry once on failure)
   `{id, status}`, success iff `updated == 1`) so two Engine instances can't
   process the same Turn. Unlike `robot_bridge.py`, it raises `Base44Error`
   — the polling worker must know a write failed.
-- **`engine_worker.py`** — MVP polling loop over the Base44 website, run by
-  hand on experiment days (`python engine_worker.py`, Ctrl+C to stop):
-  heartbeat, creating a Running session's 6 turns, `awaiting_engine` →
-  proposal, `robot_reacting` → Furhat, `awaiting_pe_check` → `pe_check`.
-  Polls every `WORKER_POLL_ACTIVE` (6 s) while a session is Running, `WORKER_POLL_IDLE` (20 s) when idle. Contract,
-  status machine, MVP shortcuts and open questions:
+- **`engine_worker.py`** — polling loop over the Base44 website, run by
+  hand on experiment days (`python engine_worker.py`, Ctrl+C to stop).
+  Heartbeat runs on its own thread (a `/listen` blocks the main loop).
+  Live sessions go to `conversation_flow` (`run_live_session`: turns run
+  back to back unless the researcher pauses/ends the session); Simulation
+  and Mock keep the typed-answer flow (`awaiting_engine` → proposal,
+  `robot_reacting` → `awaiting_pe`, `awaiting_pe_check` → `pe_check`).
+  Each proposal records `engine_model`. Polls every `WORKER_POLL_ACTIVE`
+  (6 s) while a session is Running, `WORKER_POLL_IDLE` (20 s) when idle.
+  Contract, status machine, MVP shortcuts and open questions:
   `docs/superpowers/specs/2026-11-02-base44-lab-app-integration-design.md`.
+- **`conversation_flow.py`** — the Live turn state machine
+  (`current_turn`, `advance`): the robot runs small talk, asks questions,
+  listens, reacts, asks the PE question and gives feedback itself. Design:
+  `docs/superpowers/specs/2026-11-04-autonomous-robot-conversation-design.md`.
+- **`small_talk.py`**, **`acknowledgement.py`**, **`pe_feedback.py`** — the
+  robot's generated lines for the opening/closing, the acknowledgement
+  after an answer, and PE feedback (content-only reason). All go through
+  `llm_line.py` (one shared LLM-line helper: call, clean, fall back to a
+  fixed line). PE word lists and fallback lines await researcher review.
+- **`pe_check.py`** — `grade_pe_answer(emotion, answer)` grades the
+  participant's PE answer as Correct / Partial / Wrong with an explanation.
+- **`hebrew_gender.py`** — masculine/feminine Hebrew wording helpers, driven
+  by the participant's and the robot's gender (`engine_worker.speech_context`).
+- **`worker_common.py`** — `WORKER_ID`, `log`, `now`, shared by the worker
+  and the flow.
+- **`tests/fakes.py`** — `FakeBase44`, `FakeRobot`, `heard`: shared test
+  doubles (no network, no real robot).
 - **`model_registry.py`** — `sync_to_base44()` upserts `config.LLM_MODELS`
   into the website's `LLMModel` entity at worker startup (active = the
   provider's API key is present; never deletes, deactivates removed models).
