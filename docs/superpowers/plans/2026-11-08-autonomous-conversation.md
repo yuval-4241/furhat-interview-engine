@@ -86,6 +86,7 @@ Also read: `docs/superpowers/specs/2026-11-02-base44-lab-app-integration-design.
 | P1 | The robot's "why" in the PE feedback is written by the feedback LLM call, from the question and the participant's answer (the researcher's choice, 2026-11-08). The same call returns the reason separately; it is stored in `pe_answer_why` at grading time (Live only). The emotion classifier is unchanged. | The researcher prefers a fluent reason. | The reason is written after the fact, so it may not be what actually triggered the classifier's choice. The prompt points the reason at answer content only, the guardrail checks it, and the researcher approves every line. |
 | P2 | Hebrew gender follows the participant (the researcher's choice, 2026-11-08). New website field `Participant.gender` (`Male`/`Female`). Generated lines use the matching form. The question bank's slash forms (`ספר/י`, `מתמודד/ת`) are resolved before the robot says them. When the gender is empty, generated lines avoid gendered forms, and slash forms use the first (masculine) form. The robot speaks about itself in its voice's gender (`config.VOICE_GENDERS`: AvriNeural = male, Hila voices = female). | The participant should be addressed correctly, and a spoken "ספר/י" sounds broken. | The slash-form rule (Task 7) is rule-based, so an unusual form may come out wrong (e.g. "את/ה", written feminine-first). The researcher hears it in the live check. |
 | P3 | Hebrew phrases are added to `config.NO_MASKING_FLAG_PATTERNS` (the researcher's choice, 2026-11-08). **The exact list is in Task 4, and the researcher approves the words with this plan.** Every generated spoken line (small talk, acknowledgement, feedback) is checked, and a flagged line falls back to a fixed line. | Without Hebrew patterns, the guardrail barely checks Hebrew lines. | A methodology-locked list changes. The phrases never match the evaluator's English rationale, so `graph.py` routing is unaffected. |
+| P12 | The participant's first name (new optional website field `Participant.first_name`) is used **only in small talk** (the researcher's choice, 2026-11-08). With a name, the robot doesn't ask for it. | A personal opening and closing, while interview questions, acknowledgements and feedback stay identical in form for every participant. | A first name is identifying data. **The researcher checks that the ethics approval allows storing it in Base44.** |
 | P4 | `Live` = autonomous. The old typed-answer `Live` path (researcher types, then `robot_reacting` → RobotCommand → `awaiting_pe`) is removed. `Simulation` keeps the typed flow. | There must be one Live behaviour. | Testing without hardware happens in `Simulation`, as the spec says. |
 | P5 | Retry = the website clears `engine_error`. The Engine then re-runs the turn's current status, so every status handler is safe to run twice. | One uniform rule for LLM failures and robot failures. | A Retry during `listening` makes the robot listen again (no re-ask). If the participant stays silent, the silence rule re-asks the question. |
 | P6 | Silence or bad ASR on the PE question → `skipped`, with `skip_reason = "pe_no_answer"` / `"pe_no_recognition"` (confirmed by the researcher, 2026-11-08). The reaction already given stays logged. | The spec covers answers but not the PE question. | That turn has no PE data. |
@@ -134,7 +135,7 @@ Out of scope (recorded in the spec's feasibility results, left for later):
 - Create: `docs/superpowers/specs/base44-prompts/2026-11-08-live-conversation.md`
 
 **Interfaces:**
-- Produces: `Participant.gender` (`Male` / `Female`, optional). Turn statuses `queued`, `robot_speaking`, `listening`,
+- Produces: `Participant.gender` (`Male` / `Female`, optional), `Participant.first_name` (string, optional). Turn statuses `queued`, `robot_speaking`, `listening`,
   `pe_listening`, `robot_feedback` and `skipped`; Turn fields `skip_reason`,
   `robot_line` and `engine_model` (strings); `pe_result` value `Partial`.
   Tasks 8–10 write all of these.
@@ -175,8 +176,11 @@ When a Live session starts, create its turns exactly as today, but with status `
 - Add a "Skip this turn" button on the current Live turn when its status is `queued`, `awaiting_approval` or `awaiting_feedback`, or when `engine_error` is not empty. It sets status `skipped`, `skipped = true`, `skip_reason = "researcher"`.
 - Show `robot_line` under the transcript as "Robot said", and `engine_model` as a small grey label.
 
-## 5. Participant gender
-Add `gender` to the Participant entity: an optional enum `Male`, `Female`. Show it in the participant form and the participant list as "Gender (how the robot addresses the participant)". Existing participants keep it empty until the researcher fills it in.
+## 5. Participant gender and first name
+Add two optional fields to the Participant entity:
+- `gender`: enum `Male`, `Female`. Label: "Gender (how the robot addresses the participant)".
+- `first_name`: string. Label: "First name (the robot uses it in small talk only)".
+Show both in the participant form and the participant list. Existing participants keep them empty until the researcher fills them in.
 
 ## 6. Persona (skip if already done)
 In the Persona form, make `furhat_voice` a dropdown: AvriNeural ("Avri – male"), HilaNeural ("Hila – female"), Hila:DragonLatestNeural ("Hila HD – female"). Make `furhat_face` a dropdown: Alex, Brooklyn, Chen, Dorothy, Expresivo, Fedora, Fernando, Gyeong, Hayden, Isabel, James, Jamie, Jane, Kione, Lamin, Marty, Maurice, Nazar, Omar, Patricia, Rania, Samuel, Titan, Vinnie, Yi, Yumi, Zhen. Both are optional (empty = robot default). Values are stored as plain strings with the same field names.
@@ -353,7 +357,7 @@ git commit -m "Decode all JSON escapes in the bridge and escape control characte
   - `llm_line.request_json(system, user_message, required=("line",), max_tokens=200, temperature=0.8) -> dict | None`
   - `llm_line.request_line(system, user_message, max_tokens=200, temperature=0.8) -> str | None`
   - `small_talk.role_for(phase: str, position: int, total: int, expects_answer: bool) -> str`
-  - `small_talk.generate_line(phase, position, total, expects_answer, history, language="he", participant_gender=None, robot_gender=None) -> str`.
+  - `small_talk.generate_line(phase, position, total, expects_answer, history, language="he", participant_gender=None, robot_gender=None, participant_name=None) -> str`.
     Each `history` item is `{"speaker": "robot" | "participant", "text": str}`.
 
 - [ ] **Step 1: Write the failing tests.** `tests/test_llm_line.py`:
@@ -451,6 +455,16 @@ def test_generate_line_sends_role_gender_and_history(monkeypatch):
     assert "Continue the small talk" in seen["system"]
     assert "feminine form" in seen["system"]
     assert seen["user"] == "Robot: היי, איך קוראים לך?\nCandidate: דנה"
+
+
+def test_first_name_goes_into_the_prompt_only_when_known(monkeypatch):
+    seen = []
+    monkeypatch.setattr(small_talk.llm_line, "request_line",
+                        lambda system, user_message: seen.append(system) or "שלום")
+    small_talk.generate_line("Opening", 1, 2, True, [], "he", participant_name="דנה")
+    small_talk.generate_line("Opening", 1, 2, True, [], "he")
+    assert "first name is דנה" in seen[0] and "never ask for their name" in seen[0]
+    assert "first name" not in seen[1]
 
 
 def test_generate_line_empty_history_says_so(monkeypatch):
@@ -581,10 +595,13 @@ Rules:
 - Avoid sensitive topics: health, family, politics, religion, money.
 - No emoji, no stage directions, no quotation marks around the line.
 {gender_rule}
+{name_rule}
 
 This line's job: {role}
 
 Respond with ONLY a JSON object: {{"line": "<the robot's line>"}}"""
+
+NAME_RULE = "The candidate's first name is {name}. You may use it now and then, and never ask for their name."
 
 ROLES = {
     "opening_first": "Open the session: greet the candidate and ask one easy, friendly question (for example, how their day is going).",
@@ -650,7 +667,7 @@ line, it falls back to a fixed line in the participant's gender.
 
 import guardrail
 import llm_line
-from prompts.small_talk_prompt import FALLBACK_LINES, ROLES, SMALL_TALK_SYSTEM_PROMPT
+from prompts.small_talk_prompt import FALLBACK_LINES, NAME_RULE, ROLES, SMALL_TALK_SYSTEM_PROMPT
 
 _SPEAKER_NAMES = {"robot": "Robot", "participant": "Candidate"}
 
@@ -676,12 +693,15 @@ def _fallback(lang: str, participant_gender, role: str) -> str:
 
 
 def generate_line(phase: str, position: int, total: int, expects_answer: bool, history: list,
-                  language: str = "he", participant_gender=None, robot_gender=None) -> str:
+                  language: str = "he", participant_gender=None, robot_gender=None,
+                  participant_name=None) -> str:
+    """participant_name is used in small talk only (plan decision P12)."""
     lang = llm_line.language_or_default(language)
     role = role_for(phase, position, total, expects_answer)
     system = SMALL_TALK_SYSTEM_PROMPT.format(
         language=llm_line.LANGUAGE_NAMES[lang], role=ROLES[role],
-        gender_rule=llm_line.gender_rule(lang, participant_gender, robot_gender))
+        gender_rule=llm_line.gender_rule(lang, participant_gender, robot_gender),
+        name_rule=NAME_RULE.format(name=participant_name) if participant_name else "")
     user = format_history(history) or "(The conversation has not started yet.)"
     line = llm_line.request_line(system, user)
     if line and guardrail.check_rationale(line).passed:
@@ -1392,7 +1412,7 @@ git commit -m "Add PE feedback line with an LLM-written, content-only reason"
   - `llm_client.current_model() -> str`
   - `engine_worker.heartbeat_once() -> None` (never raises `Base44Error`)
   - `engine_worker.start_heartbeat_thread() -> threading.Thread`
-  - `engine_worker.speech_context(session) -> {"participant_gender": "male"|"female"|None, "robot_gender": "male"|"female"|None}`.
+  - `engine_worker.speech_context(session) -> {"participant_gender": "male"|"female"|None, "robot_gender": "male"|"female"|None, "participant_name": str|None}`.
     Cached per session.
   - `hebrew_gender.render(text: str, gender=None) -> str`
   - `config.VOICE_GENDERS: dict[str, str]`
@@ -1631,11 +1651,12 @@ In `main()`:
 
 ```python
 def test_speech_context_reads_participant_and_voice_once(fake, monkeypatch):
-    participant = fake.add("Participant", gender="Female")
+    participant = fake.add("Participant", gender="Female", first_name=" דנה ")
     persona = fake.add("Persona", furhat_voice="AvriNeural")
     session = fake.add("Session", participant=participant["id"], persona=persona["id"])
 
-    assert engine_worker.speech_context(session) == {"participant_gender": "female", "robot_gender": "male"}
+    assert engine_worker.speech_context(session) == {
+        "participant_gender": "female", "robot_gender": "male", "participant_name": "דנה"}
 
     monkeypatch.setattr(fake, "get_record", lambda *a: pytest.fail("cached: no second lookup"))
     assert engine_worker.speech_context(session)["participant_gender"] == "female"
@@ -1643,7 +1664,8 @@ def test_speech_context_reads_participant_and_voice_once(fake, monkeypatch):
 
 def test_speech_context_without_participant_or_persona(fake):
     session = fake.add("Session")
-    assert engine_worker.speech_context(session) == {"participant_gender": None, "robot_gender": None}
+    assert engine_worker.speech_context(session) == {
+        "participant_gender": None, "robot_gender": None, "participant_name": None}
 
 
 def test_speech_context_base44_error_is_not_cached(fake, monkeypatch):
@@ -1653,7 +1675,8 @@ def test_speech_context_base44_error_is_not_cached(fake, monkeypatch):
         raise engine_worker.b44.Base44Error("timeout")
 
     monkeypatch.setattr(fake, "get_record", boom)
-    assert engine_worker.speech_context(session) == {"participant_gender": None, "robot_gender": None}
+    assert engine_worker.speech_context(session) == {
+        "participant_gender": None, "robot_gender": None, "participant_name": None}
     assert session["id"] not in engine_worker._speech_context
 ```
 
@@ -1741,30 +1764,32 @@ In `engine_worker.py`, add after `apply_persona`:
 ```python
 # ── Hebrew gender of the robot's lines ──────────────────────────────────────
 
-_speech_context = {}  # session id -> {"participant_gender", "robot_gender"}
+_speech_context = {}  # session id -> {"participant_gender", "robot_gender", "participant_name"}
 
 _PARTICIPANT_GENDERS = {"Male": "male", "Female": "female"}
 
 
 def speech_context(session: dict) -> dict:
     """The participant's gender (Participant.gender) and the robot's (its Persona voice), for
-    Hebrew wording (plan decision P2). Looked up once per session; a lookup error is not
-    cached, so the next poll tries again."""
+    Hebrew wording (plan decision P2), and the participant's first name for small talk
+    (plan decision P12). Looked up once per session; a lookup error is not cached, so the
+    next poll tries again."""
     if session["id"] in _speech_context:
         return _speech_context[session["id"]]
-    context = {"participant_gender": None, "robot_gender": None}
+    context = {"participant_gender": None, "robot_gender": None, "participant_name": None}
     try:
         if session.get("participant"):
-            gender = b44.get_record("Participant", session["participant"]).get("gender")
-            context["participant_gender"] = _PARTICIPANT_GENDERS.get(gender)
+            participant = b44.get_record("Participant", session["participant"])
+            context["participant_gender"] = _PARTICIPANT_GENDERS.get(participant.get("gender"))
+            context["participant_name"] = (participant.get("first_name") or "").strip() or None
         if session.get("persona"):
             voice = b44.get_record("Persona", session["persona"]).get("furhat_voice")
             context["robot_gender"] = config.VOICE_GENDERS.get(voice)
     except b44.RateLimited:
         raise
     except b44.Base44Error as e:
-        _log(f"Session {session.get('session_code')}: gender lookup failed: {e}")
-        return {"participant_gender": None, "robot_gender": None}
+        _log(f"Session {session.get('session_code')}: participant/persona lookup failed: {e}")
+        return {"participant_gender": None, "robot_gender": None, "participant_name": None}
     _speech_context[session["id"]] = context
     return context
 ```
@@ -1793,7 +1818,7 @@ git commit -m "Move heartbeat to its own thread; share worker helpers and test f
 - Consumes:
   - `small_talk.generate_line(phase, position, total, expects_answer, history, language, participant_gender, robot_gender)` (Task 3)
   - `acknowledgement.acknowledge(question, answer, language, participant_gender, robot_gender) -> {"line", "guardrail_flag", "guardrail_reason"}` (Task 4)
-  - `hebrew_gender.render(text, gender)` (Task 7). The `session` dict passed to `advance()` carries `participant_gender` / `robot_gender` (added by Task 10's `run_live_session`).
+  - `hebrew_gender.render(text, gender)` (Task 7). The `session` dict passed to `advance()` carries `participant_gender` / `robot_gender` / `participant_name` (added by Task 10's `run_live_session`). Only small talk receives the name (plan decision P12).
   - `furhat_client.say(text, language=None) -> {"sent", "reason"}`
   - `furhat_client.listen() -> {"status": "ok" | "no_speech" | "failed", "text"}`
   - `furhat_client.health_check() -> bool`
@@ -2277,7 +2302,8 @@ def _speak(turn, session, turns, propose):
         position, total = _position(turn, turns)
         line = small_talk.generate_line(turn.get("phase"), position, total, turn.get("expects_answer") is not False,
                                         dialogue_history(turns, turn), session.get("language", "he"),
-                                        session.get("participant_gender"), session.get("robot_gender"))
+                                        session.get("participant_gender"), session.get("robot_gender"),
+                                        session.get("participant_name"))
         turn = _update(turn, question_text=line, engine_model=llm_client.current_model())
     _say(_question_to_say(turn, session), session)
     if turn.get("expects_answer") is False:
@@ -2721,7 +2747,7 @@ def test_live_session_without_turns_waits_for_the_website(fake, monkeypatch):
 
 
 def test_live_session_adds_speech_context(fake, monkeypatch):
-    participant = fake.add("Participant", gender="Female")
+    participant = fake.add("Participant", gender="Female", first_name="דנה")
     persona = fake.add("Persona", furhat_voice="AvriNeural")
     session = fake.add("Session", status="Running", mode="Live", participant=participant["id"],
                        persona=persona["id"])
@@ -2734,6 +2760,7 @@ def test_live_session_adds_speech_context(fake, monkeypatch):
 
     assert seen["session"]["participant_gender"] == "female"
     assert seen["session"]["robot_gender"] == "male"
+    assert seen["session"]["participant_name"] == "דנה"
 
 
 def test_live_session_passes_build_proposal(fake, monkeypatch):
@@ -2893,10 +2920,11 @@ researcher before going on.
   "LLM models synced", and the website shows the Engine as available (the
   heartbeat thread is running).
 
-- [ ] **Step 3: Small talk.** On the website, set your participant's Gender,
+- [ ] **Step 3: Small talk.** On the website, set your participant's Gender and First name,
   then create a **Short** Live session with a Persona (for example Isabel +
   AvriNeural) and start it. Expected (also: the robot addresses you in the
-  right gender, and questions with "/" are read as one form):
+  right gender and uses your name in small talk without asking for it, and
+  questions with "/" are read as one form):
   - The face and voice change.
   - The robot greets you and asks an easy question.
   - Your answer appears on the website as "What the participant said".
