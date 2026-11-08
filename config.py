@@ -146,6 +146,10 @@ LISTEN_TIMEOUT_MS = 10000
 LISTEN_END_SIL_MS = 3000
 LISTEN_MAX_SPEECH_MS = 120000
 
+# Grammatical gender of each Furhat Hebrew voice: the robot speaks about
+# itself in this form (Plan 2, decision P2). Voices not listed -> neutral.
+VOICE_GENDERS = {"AvriNeural": "male", "HilaNeural": "female", "Hila:DragonLatestNeural": "female"}
+
 # ── Base44 lab app (frontend + DB the Engine polls) ─────────────────────────
 # The app never calls the Engine; the Engine polls entities through the REST
 # API and writes back. Token is a Base44 personal access token — env only.

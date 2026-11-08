@@ -74,6 +74,11 @@ def model_override(engine_key: str):
         _model_override.reset(token)
 
 
+def current_model() -> str:
+    """The model call_llm() would use right now, for recording which model produced a turn."""
+    return _model_override.get() or config.MODEL_DEFAULT
+
+
 def call_llm(
     system: str,
     user_message: str,
@@ -85,7 +90,7 @@ def call_llm(
     Single-turn call. Returns plain text response.
     model=None -> uses config.MODEL_DEFAULT.
     """
-    model = model or _model_override.get() or config.MODEL_DEFAULT
+    model = model or current_model()
     entry = config.LLM_MODELS.get(model)
     client = _client_for(entry["provider"]) if entry else get_client()
 

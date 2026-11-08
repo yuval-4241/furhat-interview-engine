@@ -1,50 +1,7 @@
-import itertools
-
 import pytest
 
 import engine_worker
-
-
-class FakeBase44:
-    """In-memory stand-in for base44_client: exact-match queries, compare-and-set claim."""
-
-    Base44Error = engine_worker.b44.Base44Error
-    RateLimited = engine_worker.b44.RateLimited
-
-    def __init__(self):
-        self.records = {}
-        self._ids = itertools.count(1)
-
-    def add(self, entity, **fields):
-        rec = {"id": f"{entity}-{next(self._ids)}", **fields}
-        self.records.setdefault(entity, []).append(rec)
-        return rec
-
-    def list_records(self, entity, query=None, sort=None, limit=100):
-        rows = [r for r in self.records.get(entity, [])
-                if all(r.get(k) == v for k, v in (query or {}).items())]
-        if sort:
-            rows.sort(key=lambda r: r.get(sort))
-        return [dict(r) for r in rows[:limit]]
-
-    def get(self, entity, record_id):
-        return next(r for r in self.records[entity] if r["id"] == record_id)
-
-    get_record = get  # real client's name, so model_registry can use this fake too
-
-    def create_record(self, entity, fields):
-        return dict(self.add(entity, **fields))
-
-    def update_record(self, entity, record_id, fields):
-        self.get(entity, record_id).update(fields)
-        return dict(self.get(entity, record_id))
-
-    def claim(self, entity, record_id, from_status, fields):
-        rec = self.get(entity, record_id)
-        if rec.get("status") != from_status:
-            return False
-        rec.update(fields)
-        return True
+from tests.fakes import FakeBase44
 
 
 @pytest.fixture
@@ -52,6 +9,7 @@ def fake(monkeypatch):
     store = FakeBase44()
     monkeypatch.setattr(engine_worker, "b44", store)
     monkeypatch.setattr(engine_worker, "_robot_wait_started", {})
+    monkeypatch.setattr(engine_worker, "_speech_context", {})
     return store
 
 
@@ -306,3 +264,55 @@ def test_apply_persona_bridge_error_is_not_retried(fake, monkeypatch):
     engine_worker.apply_persona(session, True)
 
     assert len(calls) == 1 and session["id"] in engine_worker._personas_applied
+
+
+def test_heartbeat_once_reports_robot_status(fake, monkeypatch):
+    monkeypatch.setattr(engine_worker, "_heartbeat_id", None)
+    monkeypatch.setattr(engine_worker.furhat_client, "health_check", lambda: True)
+
+    engine_worker.heartbeat_once()
+
+    beat = fake.list_records("EngineHeartbeat", {"key": "engine-main"})
+    assert len(beat) == 1 and beat[0]["robot_connected"] is True
+
+
+def test_heartbeat_once_survives_base44_errors(fake, monkeypatch):
+    monkeypatch.setattr(engine_worker, "_heartbeat_id", None)
+    monkeypatch.setattr(engine_worker.furhat_client, "health_check", lambda: False)
+
+    def limited(*a, **k):
+        raise engine_worker.b44.RateLimited("429")
+
+    monkeypatch.setattr(fake, "list_records", limited)
+
+    engine_worker.heartbeat_once()  # must not raise
+
+
+def test_speech_context_reads_participant_and_voice_once(fake, monkeypatch):
+    participant = fake.add("Participant", gender="Female", first_name=" דנה ")
+    persona = fake.add("Persona", furhat_voice="AvriNeural")
+    session = fake.add("Session", participant=participant["id"], persona=persona["id"])
+
+    assert engine_worker.speech_context(session) == {
+        "participant_gender": "female", "robot_gender": "male", "participant_name": "דנה"}
+
+    monkeypatch.setattr(fake, "get_record", lambda *a: pytest.fail("cached: no second lookup"))
+    assert engine_worker.speech_context(session)["participant_gender"] == "female"
+
+
+def test_speech_context_without_participant_or_persona(fake):
+    session = fake.add("Session")
+    assert engine_worker.speech_context(session) == {
+        "participant_gender": None, "robot_gender": None, "participant_name": None}
+
+
+def test_speech_context_base44_error_is_not_cached(fake, monkeypatch):
+    session = fake.add("Session", participant="p1")
+
+    def boom(entity, record_id):
+        raise engine_worker.b44.Base44Error("timeout")
+
+    monkeypatch.setattr(fake, "get_record", boom)
+    assert engine_worker.speech_context(session) == {
+        "participant_gender": None, "robot_gender": None, "participant_name": None}
+    assert session["id"] not in engine_worker._speech_context

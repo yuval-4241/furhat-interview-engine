@@ -1,7 +1,7 @@
 import pytest
 
 import model_registry
-from tests.test_engine_worker import FakeBase44
+from tests.fakes import FakeBase44
 
 
 @pytest.fixture

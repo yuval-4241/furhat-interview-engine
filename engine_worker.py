@@ -14,9 +14,8 @@ Run by hand on experiment days only, stop with Ctrl+C:
 See docs/superpowers/specs/2026-11-02-base44-lab-app-integration-design.md.
 """
 
-import socket
+import threading
 import time
-from datetime import datetime, timezone
 
 import base44_client as b44
 import config
@@ -29,8 +28,7 @@ import model_registry
 import pe_check
 from question_bank import QuestionBank
 from response_bank import ResponseBank
-
-WORKER_ID = f"{socket.gethostname()}-{config.ENGINE_VERSION}"
+from worker_common import WORKER_ID, log as _log, now as _now
 
 _question_bank = QuestionBank()
 _response_bank = ResponseBank()
@@ -39,14 +37,6 @@ _response_bank = ResponseBank()
 _robot_wait_started = {}
 
 _personas_applied = set()  # session ids whose face/voice were already sent to the robot
-
-
-def _now() -> str:
-    return datetime.now(timezone.utc).isoformat()
-
-
-def _log(msg: str) -> None:
-    print(f"[{datetime.now():%H:%M:%S}] {msg}", flush=True)
 
 
 def _app_level(level: str) -> str:
@@ -73,6 +63,26 @@ def send_heartbeat(robot_connected: bool) -> None:
             records = [b44.create_record("EngineHeartbeat", {"key": "engine-main", **fields})]
         _heartbeat_id = records[0]["id"]
     b44.update_record("EngineHeartbeat", _heartbeat_id, fields)
+
+
+def heartbeat_once() -> None:
+    try:
+        send_heartbeat(furhat_client.health_check())
+    except b44.Base44Error as e:  # RateLimited too: the next beat is WORKER_HEARTBEAT_EVERY away anyway
+        _log(f"Heartbeat failed: {e}")
+
+
+def start_heartbeat_thread() -> threading.Thread:
+    """Heartbeat on its own thread (plan decision P8): a /listen in the main loop blocks
+    for up to ~2.5 min, and the website shows "Engine unavailable" after 60 s without one."""
+    def run():
+        while True:
+            heartbeat_once()
+            time.sleep(config.WORKER_HEARTBEAT_EVERY)
+
+    thread = threading.Thread(target=run, name="heartbeat", daemon=True)
+    thread.start()
+    return thread
 
 
 # ── Session setup ───────────────────────────────────────────────────────────
@@ -254,6 +264,38 @@ def apply_persona(session: dict, robot_connected: bool) -> None:
         _personas_applied.add(session["id"])  # a bridge refusal (bad voice name) won't fix itself
 
 
+# ── Hebrew gender of the robot's lines ──────────────────────────────────────
+
+_speech_context = {}  # session id -> {"participant_gender", "robot_gender", "participant_name"}
+
+_PARTICIPANT_GENDERS = {"Male": "male", "Female": "female"}
+
+
+def speech_context(session: dict) -> dict:
+    """The participant's gender (Participant.gender) and the robot's (its Persona voice), for
+    Hebrew wording (plan decision P2), and the participant's first name for small talk
+    (plan decision P12). Looked up once per session; a lookup error is not cached, so the
+    next poll tries again."""
+    if session["id"] in _speech_context:
+        return _speech_context[session["id"]]
+    context = {"participant_gender": None, "robot_gender": None, "participant_name": None}
+    try:
+        if session.get("participant"):
+            participant = b44.get_record("Participant", session["participant"])
+            context["participant_gender"] = _PARTICIPANT_GENDERS.get(participant.get("gender"))
+            context["participant_name"] = (participant.get("first_name") or "").strip() or None
+        if session.get("persona"):
+            voice = b44.get_record("Persona", session["persona"]).get("furhat_voice")
+            context["robot_gender"] = config.VOICE_GENDERS.get(voice)
+    except b44.RateLimited:
+        raise
+    except b44.Base44Error as e:
+        _log(f"Session {session.get('session_code')}: participant/persona lookup failed: {e}")
+        return {"participant_gender": None, "robot_gender": None, "participant_name": None}
+    _speech_context[session["id"]] = context
+    return context
+
+
 # ── Main loop ───────────────────────────────────────────────────────────────
 
 def poll_once(robot_connected: bool) -> bool:
@@ -302,15 +344,12 @@ def main() -> None:
         _log("LLM models synced to the website")
     except b44.Base44Error as e:
         _log(f"Model sync failed (continuing): {e}")
-    last_heartbeat = 0.0
+    start_heartbeat_thread()
     backoff = 0.0
     while True:
         active = False
         try:
             robot_connected = furhat_client.health_check()
-            if time.monotonic() - last_heartbeat >= config.WORKER_HEARTBEAT_EVERY:
-                send_heartbeat(robot_connected)
-                last_heartbeat = time.monotonic()
             active = poll_once(robot_connected)
             backoff = 0.0
         except b44.RateLimited:

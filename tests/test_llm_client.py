@@ -1,5 +1,6 @@
 import pytest
 
+import config
 import llm_client
 
 
@@ -61,3 +62,10 @@ def test_client_for_missing_key_raises_helpful_error(monkeypatch):
     with pytest.raises(RuntimeError, match="OPENAI_API_KEY"):
         llm_client._client_for("openai")
     assert "openai" not in llm_client._clients  # failure must not be cached
+
+
+def test_current_model_follows_override():
+    assert llm_client.current_model() == config.MODEL_DEFAULT
+    with llm_client.model_override("llama3.1-8b"):
+        assert llm_client.current_model() == "llama3.1-8b"
+    assert llm_client.current_model() == config.MODEL_DEFAULT
