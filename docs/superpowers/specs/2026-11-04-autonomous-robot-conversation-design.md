@@ -260,8 +260,8 @@ Run by the researcher on the Furhat virtual SDK (launcher, `InterviewSkill`).
   `requiresSpeaker/Microphone/Recognizer = false` (the startup check timed
   out on the SDK), `setInputLanguage(HEBREW)` on entry (the recognizer had
   defaulted to English), and reset to the `default` face on entry.
-- **Not confirmed explicitly:** whether a 2 s mid-answer pause was included
-  in the first probe.
+- **3 s `endSil`:** a 2 s mid-answer pause did not end the listen; the
+  text continued after it (confirmed by the researcher).
 
 ## Out of scope
 
