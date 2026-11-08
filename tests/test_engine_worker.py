@@ -199,16 +199,17 @@ def test_react_turn_simulation_creates_no_robot_command(fake):
 
 
 def test_check_pe_writes_result(fake, monkeypatch):
-    session = fake.add("Session", status="Running", mode="Live")
+    session = fake.add("Session", status="Running", mode="Simulation")
     turn = fake.add("Turn", session=session["id"], order=1, status="awaiting_pe_check",
-                    target_emotion="ANGER", participant_pe_answer="הוא נראה כועס")
-    monkeypatch.setattr(engine_worker.pe_check, "check_pe_answer",
-                        lambda gt, ans: {"match": True, "explanation": "זיהוי נכון"})
+                    target_emotion="HAPPINESS", participant_pe_answer="התלהבת")
+    monkeypatch.setattr(engine_worker.pe_check, "grade_pe_answer",
+                        lambda gt, ans: {"result": "Partial", "explanation": "קרוב"})
 
     engine_worker.check_pe(turn, session)
 
     saved = fake.get("Turn", turn["id"])
-    assert saved["pe_result"] == "Correct"
+    assert saved["pe_result"] == "Partial"
+    assert saved["pe_explanation"] == "קרוב"
     assert saved["status"] == "awaiting_feedback"
 
 

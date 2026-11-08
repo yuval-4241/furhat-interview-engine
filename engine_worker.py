@@ -216,15 +216,15 @@ def execute_command(cmd: dict, robot_connected: bool) -> None:
 
 def check_pe(turn: dict, session: dict) -> None:
     if session.get("mode") == "Mock":
-        result = {"match": True, "explanation": "Mock mode — no LLM call."}
+        graded = {"result": "Correct", "explanation": "Mock mode — no LLM call."}
     else:
-        result = pe_check.check_pe_answer(turn.get("target_emotion", ""), turn.get("participant_pe_answer", ""))
+        graded = pe_check.grade_pe_answer(turn.get("target_emotion", ""), turn.get("participant_pe_answer", ""))
     b44.update_record("Turn", turn["id"], {
-        "pe_result": "Correct" if result["match"] else "Wrong",
-        "pe_explanation": result["explanation"],
+        "pe_result": graded["result"],
+        "pe_explanation": graded["explanation"],
         "status": "awaiting_feedback",
     })
-    _log(f"Turn {turn.get('order')}: PE {'Correct' if result['match'] else 'Wrong'}")
+    _log(f"Turn {turn.get('order')}: PE {graded['result']}")
 
 
 # ── Persona ─────────────────────────────────────────────────────────────────
