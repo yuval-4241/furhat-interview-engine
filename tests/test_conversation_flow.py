@@ -421,3 +421,36 @@ def test_waiting_for_approval_does_nothing(fake, monkeypatch):
 
     assert run(fake, s, t) is False
     assert robot.calls == []
+
+
+def test_retry_after_pe_question_drop_does_not_repeat_reaction(fake, monkeypatch):
+    s = live_session(fake)
+    t = pbdi_turn(fake, s, status="robot_reacting", participant_answer="תשובה", final_reply="איזה יופי!",
+                  target_emotion="HAPPINESS", intensity=2)
+
+    class DropsOnSay(FakeRobot):
+        def say(self, text, language=None, gender=None):
+            self.calls.append(("say", text))
+            return {"sent": False, "reason": "connection refused"}
+
+    first = use_robot(monkeypatch, DropsOnSay())
+    assert run(fake, s, t) is False
+    assert fake.get("Turn", t["id"])["engine_error"] == "robot disconnected"
+    assert [c["status"] for c in fake.list_records("RobotCommand", {"turn": t["id"]})] == ["done"]
+    assert first.calls[0][0] == "react"
+
+    fake.update_record("Turn", t["id"], {"engine_error": ""})
+    second = use_robot(monkeypatch, FakeRobot(heard=[heard("שמחת")]))
+    monkeypatch.setattr(flow.pe_check, "grade_pe_answer",
+                        lambda target, answer: {"result": "Correct", "explanation": "נכון"})
+    monkeypatch.setattr(flow.pe_feedback, "generate_feedback",
+                        lambda target, question, answer, guess, result, language="he", *genders:
+                        {"line": "כן", "reason": "כי"})
+
+    assert run(fake, s, t) is False
+
+    assert not [c for c in second.calls if c[0] == "react"]
+    assert second.said() == [flow.PE_QUESTION]
+    assert len(fake.list_records("RobotCommand", {"turn": t["id"]})) == 1
+    saved = fake.get("Turn", t["id"])
+    assert saved["status"] == "awaiting_feedback" and saved["robot_line"] == "איזה יופי!"

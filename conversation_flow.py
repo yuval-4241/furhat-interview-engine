@@ -234,6 +234,11 @@ def _propose(turn, session, propose):
 
 def _react(turn, session, turns, propose):
     """robot_reacting (set by the researcher's Approve): emotion + reply, then the fixed PE question."""
+    done = b44.list_records("RobotCommand", {"turn": turn["id"], "status": "done"}, limit=1)
+    if done:
+        # Retry after a robot drop on the PE question: the reaction already played, never repeat it (P5).
+        _say(PE_QUESTION, session)
+        return _update(turn, robot_line=done[0]["text"], status="pe_listening")
     text = turn.get("final_reply") or turn.get("proposed_reply", "")
     count = len(b44.list_records("RobotCommand", {"session": session["id"]}, limit=1000))
     cmd = b44.create_record("RobotCommand", {
