@@ -112,6 +112,10 @@ NO_MASKING_FLAG_PATTERNS = [
     "נשמעת לחוץ", "נשמעת לחוצה",
     "נראית לחוץ", "נראית לחוצה",
     "נשמעת בטוח", "נשמעת בטוחה",
+    # Masculine present forms, approved by the researcher on 2026-11-08
+    # ("אתה נשמע לחוץ"); "ארוך/קצר מדי" deliberately left out, as they
+    # can describe content ("הפרויקט היה ארוך מדי").
+    "נשמע לחוץ", "נראה לחוץ", "נשמע בטוח",
     "חוסר התלהבות",
     "ישיר מדי", "ישירה מדי",
     "בוטה מדי",

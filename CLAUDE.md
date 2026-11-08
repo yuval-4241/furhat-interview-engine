@@ -67,7 +67,7 @@ To add an LLM model: see the ▶▶ ADD NEW LLM MODELS HERE ◀◀ block in
 worker startup.
 
 ```bash
-# Run the automated test suite (246 passed, 5 skipped: schemas, guardrail, consistency,
+# Run the automated test suite (249 passed, 5 skipped: schemas, guardrail, consistency,
 # evaluator, graph routing, emotion classifier, robot-reaction bridge,
 # PE check, Base44 client, engine worker, model registry, Furhat client, ...)
 pytest tests/ -v
