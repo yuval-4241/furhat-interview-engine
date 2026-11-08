@@ -21,6 +21,9 @@ feedback. The researcher only clicks Approve on the two emotional moments.
   lists built on Shaver et al. (1987).
 - The heartbeat moves to its own thread, because `/listen` blocks the main
   loop for up to about 2.5 minutes.
+- Hebrew lines follow the participant's gender, from a new website field
+  `Participant.gender`. The question bank's slash forms ("ספר/י") are
+  resolved before the robot says them.
 - The Base44 website gets the new statuses and fields from a prompt the
   researcher pastes (Task 1).
 
@@ -38,11 +41,12 @@ Also read: `docs/superpowers/specs/2026-11-02-base44-lab-app-integration-design.
 
 ## Global Constraints
 
-- Methodology-locked content stays untouched: `config.NO_MASKING_FLAG_PATTERNS`,
-  `PERSONAS` (`prompts/persona_prompts.py`), `EVALUATOR_SYSTEM_PROMPT_A`/`_B`.
-  The evaluator, the emotion classifier's prompt and behaviour, the guardrail,
-  and the response bank are unchanged. Task 6 only *exposes* a field the
-  classifier already computes.
+- Methodology-locked content: `PERSONAS` (`prompts/persona_prompts.py`) and
+  `EVALUATOR_SYSTEM_PROMPT_A`/`_B` stay untouched. The one approved change
+  is Task 4's Hebrew additions to `config.NO_MASKING_FLAG_PATTERNS`
+  (decision P3). Existing entries are never edited or removed. The
+  evaluator, the emotion classifier, the guardrail's code and the response
+  bank are unchanged.
 - No-Masking: every generated line refers to answer **content**. It never
   comments on delivery (tone, confidence, eye contact, structure, length,
   directness) and never grades quality ("great answer").
@@ -79,12 +83,12 @@ Also read: `docs/superpowers/specs/2026-11-02-base44-lab-app-integration-design.
 
 | # | Decision | Why | Cost if wrong |
 |---|---|---|---|
-| P1 | `pe_answer_why` holds the classifier's `cue` (the words in the answer behind the emotion), via a new `emotion_classifier.classify_emotion_detailed()`. `classify_emotion()` keeps returning only emotion + intensity. | The robot's "why" in the feedback should be the real trigger. Today it holds the evaluator's quality rationale, which is a grade and is written in English. | The cue can sometimes mention delivery ("flat tone"). The feedback prompt tells the model to ignore delivery, and the researcher approves every feedback line. |
-| P2 | Fallback lines avoid gendered Hebrew. The spec's "נעים מאוד, בוא נמשיך" becomes "נעים מאוד, נמשיך." | The participant's gender is unknown, and spoken "בוא" is masculine. | One wording change. The fallback lines are listed in Task 3 for review. |
-| P3 | `guardrail.check_rationale()` runs on acknowledgements as the spec says, but its patterns are English, so it barely checks Hebrew lines. Hebrew patterns are **not** added. | Changing `NO_MASKING_FLAG_PATTERNS` is a methodology decision. **Open question for the researcher.** | Hebrew acknowledgements rely on the prompt rules alone until Hebrew patterns are approved. |
+| P1 | The robot's "why" in the PE feedback is written by the feedback LLM call, from the question and the participant's answer (the researcher's choice, 2026-11-08). The same call returns the reason separately; it is stored in `pe_answer_why` at grading time (Live only). The emotion classifier is unchanged. | The researcher prefers a fluent reason. | The reason is written after the fact, so it may not be what actually triggered the classifier's choice. The prompt points the reason at answer content only, the guardrail checks it, and the researcher approves every line. |
+| P2 | Hebrew gender follows the participant (the researcher's choice, 2026-11-08). New website field `Participant.gender` (`Male`/`Female`). Generated lines use the matching form. The question bank's slash forms (`ספר/י`, `מתמודד/ת`) are resolved before the robot says them. When the gender is empty, generated lines avoid gendered forms, and slash forms use the first (masculine) form. The robot speaks about itself in its voice's gender (`config.VOICE_GENDERS`: AvriNeural = male, Hila voices = female). | The participant should be addressed correctly, and a spoken "ספר/י" sounds broken. | The slash-form rule (Task 7) is rule-based, so an unusual form may come out wrong (e.g. "את/ה", written feminine-first). The researcher hears it in the live check. |
+| P3 | Hebrew phrases are added to `config.NO_MASKING_FLAG_PATTERNS` (the researcher's choice, 2026-11-08). **The exact list is in Task 4, and the researcher approves the words with this plan.** Every generated spoken line (small talk, acknowledgement, feedback) is checked, and a flagged line falls back to a fixed line. | Without Hebrew patterns, the guardrail barely checks Hebrew lines. | A methodology-locked list changes. The phrases never match the evaluator's English rationale, so `graph.py` routing is unaffected. |
 | P4 | `Live` = autonomous. The old typed-answer `Live` path (researcher types, then `robot_reacting` → RobotCommand → `awaiting_pe`) is removed. `Simulation` keeps the typed flow. | There must be one Live behaviour. | Testing without hardware happens in `Simulation`, as the spec says. |
 | P5 | Retry = the website clears `engine_error`. The Engine then re-runs the turn's current status, so every status handler is safe to run twice. | One uniform rule for LLM failures and robot failures. | A Retry during `listening` makes the robot listen again (no re-ask). If the participant stays silent, the silence rule re-asks the question. |
-| P6 | Silence or bad ASR on the PE question → `skipped`, with `skip_reason = "pe_no_answer"` / `"pe_no_recognition"`. The reaction already given stays logged. | The spec covers answers but not the PE question. | That turn has no PE data. |
+| P6 | Silence or bad ASR on the PE question → `skipped`, with `skip_reason = "pe_no_answer"` / `"pe_no_recognition"` (confirmed by the researcher, 2026-11-08). The reaction already given stays logged. | The spec covers answers but not the PE question. | That turn has no PE data. |
 | P7 | In `Live`, a turn in `awaiting_answer` is treated like `queued`. | The website creates turns as `awaiting_answer` until the Task 1 prompt is pasted, so the flow works either way. | None. |
 | P8 | The heartbeat runs on its own thread. | `/listen` blocks the loop for up to about 2.5 min, and the website shows "Engine unavailable" after 60 s without a heartbeat. | One extra thread. Its Base44 errors are logged, not backed off. |
 | P9 | After a turn finishes, the worker starts the next turn right away, but first re-reads `Session.status` and stops if the session is no longer `Running`. | Avoids a 6 s gap between questions, and Pause still works between turns. | One `get_record` per finished turn. |
@@ -97,7 +101,8 @@ Out of scope (recorded in the spec's feasibility results, left for later):
 - Server-side validation of face and voice names. The website uses closed
   dropdowns instead.
 - English Live sessions: the fixed lines and the response bank are Hebrew.
-- Hebrew gender agreement with the participant.
+- Gendered words outside slash forms in the question bank (for example "לך"
+  without vowels): the TTS picks one reading.
 - A PE confidence rating.
 
 ## Review Focus
@@ -129,7 +134,7 @@ Out of scope (recorded in the spec's feasibility results, left for later):
 - Create: `docs/superpowers/specs/base44-prompts/2026-11-08-live-conversation.md`
 
 **Interfaces:**
-- Produces: Turn statuses `queued`, `robot_speaking`, `listening`,
+- Produces: `Participant.gender` (`Male` / `Female`, optional). Turn statuses `queued`, `robot_speaking`, `listening`,
   `pe_listening`, `robot_feedback` and `skipped`; Turn fields `skip_reason`,
   `robot_line` and `engine_model` (strings); `pe_result` value `Partial`.
   Tasks 8–10 write all of these.
@@ -170,8 +175,8 @@ When a Live session starts, create its turns exactly as today, but with status `
 - Add a "Skip this turn" button on the current Live turn when its status is `queued`, `awaiting_approval` or `awaiting_feedback`, or when `engine_error` is not empty. It sets status `skipped`, `skipped = true`, `skip_reason = "researcher"`.
 - Show `robot_line` under the transcript as "Robot said", and `engine_model` as a small grey label.
 
-## 5. Session list
-No change.
+## 5. Participant gender
+Add `gender` to the Participant entity: an optional enum `Male`, `Female`. Show it in the participant form and the participant list as "Gender (how the robot addresses the participant)". Existing participants keep it empty until the researcher fills it in.
 
 ## 6. Persona (skip if already done)
 In the Persona form, make `furhat_voice` a dropdown: AvriNeural ("Avri – male"), HilaNeural ("Hila – female"), Hila:DragonLatestNeural ("Hila HD – female"). Make `furhat_face` a dropdown: Alex, Brooklyn, Chen, Dorothy, Expresivo, Fedora, Fernando, Gyeong, Hayden, Isabel, James, Jamie, Jane, Kione, Lamin, Marty, Maurice, Nazar, Omar, Patricia, Rania, Samuel, Titan, Vinnie, Yi, Yumi, Zhen. Both are optional (empty = robot default). Values are stored as plain strings with the same field names.
@@ -337,13 +342,18 @@ git commit -m "Decode all JSON escapes in the bridge and escape control characte
 - Test: `tests/test_llm_line.py`, `tests/test_small_talk.py`
 
 **Interfaces:**
-- Consumes: `llm_client.call_llm(system, user_message, model=None, temperature=0.7, max_tokens=500) -> str`
+- Consumes:
+  - `llm_client.call_llm(system, user_message, model=None, temperature=0.7, max_tokens=500) -> str`
+  - `guardrail.check_rationale(text) -> GuardrailResult` (`.passed`)
 - Produces:
   - `llm_line.LANGUAGE_NAMES: dict`
   - `llm_line.language_or_default(language) -> str`: returns `"he"` or `"en"`
-  - `llm_line.request_line(system: str, user_message: str, max_tokens: int = 200, temperature: float = 0.8) -> str | None`
+  - `llm_line.gender_rule(language, participant_gender=None, robot_gender=None) -> str`.
+    Genders are `"male"`, `"female"` or `None`.
+  - `llm_line.request_json(system, user_message, required=("line",), max_tokens=200, temperature=0.8) -> dict | None`
+  - `llm_line.request_line(system, user_message, max_tokens=200, temperature=0.8) -> str | None`
   - `small_talk.role_for(phase: str, position: int, total: int, expects_answer: bool) -> str`
-  - `small_talk.generate_line(phase: str, position: int, total: int, expects_answer: bool, history: list[dict], language: str = "he") -> str`.
+  - `small_talk.generate_line(phase, position, total, expects_answer, history, language="he", participant_gender=None, robot_gender=None) -> str`.
     Each `history` item is `{"speaker": "robot" | "participant", "text": str}`.
 
 - [ ] **Step 1: Write the failing tests.** `tests/test_llm_line.py`:
@@ -383,10 +393,23 @@ def test_request_line_gives_up_after_two_failures(monkeypatch):
     assert len(calls) == 2
 
 
+def test_request_json_needs_every_required_field(monkeypatch):
+    _fake_llm(monkeypatch, ['{"line": "x"}', '{"line": "x", "reason": "y"}'])
+    assert llm_line.request_json("sys", "user", required=("line", "reason")) == {"line": "x", "reason": "y"}
+
+
 def test_language_or_default():
     assert llm_line.language_or_default("en") == "en"
     assert llm_line.language_or_default(None) == "he"
     assert llm_line.language_or_default("fr") == "he"
+
+
+def test_gender_rule():
+    assert llm_line.gender_rule("en", "female", "male") == ""
+    assert "feminine form" in llm_line.gender_rule("he", "female")
+    assert "masculine form" in llm_line.gender_rule("he", "male")
+    assert "unknown" in llm_line.gender_rule("he", None)
+    assert "speaks about itself, use the feminine form" in llm_line.gender_rule("he", "male", "female")
 ```
 
 `tests/test_small_talk.py`:
@@ -410,7 +433,7 @@ def test_role_for(phase, position, total, expects_answer, role):
     assert small_talk.role_for(phase, position, total, expects_answer) == role
 
 
-def test_generate_line_sends_role_and_history(monkeypatch):
+def test_generate_line_sends_role_gender_and_history(monkeypatch):
     seen = {}
 
     def fake(system, user_message):
@@ -421,11 +444,12 @@ def test_generate_line_sends_role_and_history(monkeypatch):
     history = [{"speaker": "robot", "text": "היי, איך קוראים לך?"},
                {"speaker": "participant", "text": "דנה"}]
 
-    line = small_talk.generate_line("Opening", 2, 3, True, history, "he")
+    line = small_talk.generate_line("Opening", 2, 3, True, history, "he", participant_gender="female")
 
     assert line == "נעים מאוד, דנה!"
     assert "Hebrew" in seen["system"]
     assert "Continue the small talk" in seen["system"]
+    assert "feminine form" in seen["system"]
     assert seen["user"] == "Robot: היי, איך קוראים לך?\nCandidate: דנה"
 
 
@@ -437,10 +461,27 @@ def test_generate_line_empty_history_says_so(monkeypatch):
     assert seen["user"] == "(The conversation has not started yet.)"
 
 
-def test_generate_line_falls_back_when_llm_fails(monkeypatch):
+def test_generate_line_falls_back_by_gender_when_llm_fails(monkeypatch):
     monkeypatch.setattr(small_talk.llm_line, "request_line", lambda system, user_message: None)
-    assert small_talk.generate_line("Closing", 2, 2, False, [], "he") == FALLBACK_LINES["he"]["closing_last"]
-    assert small_talk.generate_line("Opening", 1, 2, True, [], "en") == FALLBACK_LINES["en"]["opening_first"]
+    assert small_talk.generate_line("Opening", 2, 3, True, [], "he", "female") == \
+        FALLBACK_LINES["he"]["female"]["opening_middle"]
+    assert small_talk.generate_line("Opening", 2, 3, True, [], "he", None) == \
+        FALLBACK_LINES["he"]["neutral"]["opening_middle"]
+    assert small_talk.generate_line("Opening", 1, 2, True, [], "en", "male") == \
+        FALLBACK_LINES["en"]["neutral"]["opening_first"]
+
+
+def test_flagged_line_falls_back(monkeypatch):
+    monkeypatch.setattr(small_talk.llm_line, "request_line",
+                        lambda system, user_message: "You seemed nervous, but welcome!")
+    assert small_talk.generate_line("Opening", 1, 2, True, [], "en") == FALLBACK_LINES["en"]["neutral"]["opening_first"]
+
+
+def test_every_gender_has_every_role():
+    for lang, forms in FALLBACK_LINES.items():
+        assert "neutral" in forms, lang
+        for form, lines in forms.items():
+            assert set(lines) == set(small_talk.ROLES), (lang, form)
 ```
 
 - [ ] **Step 2: Run them to see them fail**
@@ -452,8 +493,8 @@ Expected: FAIL with `ModuleNotFoundError: No module named 'llm_line'`.
 
 ```python
 """
-llm_line.py -- asks the LLM for one spoken robot line, returned as
-{"line": "..."}. Shared by small_talk.py, acknowledgement.py and
+llm_line.py -- asks the LLM for one spoken robot line, returned as JSON
+(e.g. {"line": "..."}). Shared by small_talk.py, acknowledgement.py and
 pe_feedback.py.
 
 One retry (spec: "LLM call fails -> one retry"), then None, so each caller
@@ -467,10 +508,25 @@ import re
 import llm_client
 
 LANGUAGE_NAMES = {"he": "Hebrew", "en": "English"}
+_FORMS = {"male": "masculine", "female": "feminine"}
 
 
 def language_or_default(language) -> str:
     return language if language in LANGUAGE_NAMES else "he"
+
+
+def gender_rule(language, participant_gender=None, robot_gender=None) -> str:
+    """Prompt sentence about Hebrew grammatical gender (plan decision P2). Empty for English."""
+    if language != "he":
+        return ""
+    if participant_gender in _FORMS:
+        rules = [f"Address the candidate in the {_FORMS[participant_gender]} form."]
+    else:
+        rules = ["Avoid gender-marked second-person forms (for example \"מה שלומך?\"), "
+                 "because the candidate's gender is unknown."]
+    if robot_gender in _FORMS:
+        rules.append(f"When the robot speaks about itself, use the {_FORMS[robot_gender]} form.")
+    return " ".join(rules)
 
 
 def _strip_fences(text: str) -> str:
@@ -480,17 +536,24 @@ def _strip_fences(text: str) -> str:
     return text
 
 
-def request_line(system: str, user_message: str, max_tokens: int = 200, temperature: float = 0.8):
+def request_json(system: str, user_message: str, required=("line",), max_tokens: int = 200,
+                 temperature: float = 0.8):
     for _ in range(2):
         try:
             raw = llm_client.call_llm(system=system, user_message=user_message,
                                       max_tokens=max_tokens, temperature=temperature)
-            line = str(json.loads(_strip_fences(raw))["line"]).strip()
+            data = json.loads(_strip_fences(raw))
+            values = {key: str(data[key]).strip() for key in required}
         except Exception:  # LLM/network error or malformed JSON: retry, then the caller falls back
             continue
-        if line:
-            return line
+        if all(values.values()):
+            return values
     return None
+
+
+def request_line(system: str, user_message: str, max_tokens: int = 200, temperature: float = 0.8):
+    data = request_json(system, user_message, ("line",), max_tokens, temperature)
+    return data["line"] if data else None
 ```
 
 `prompts/small_talk_prompt.py`:
@@ -502,9 +565,10 @@ every session from the dialogue so far (spec decision 5). Not
 methodology-locked, but No-Masking still applies: the robot never comments
 on how the candidate speaks.
 
-FALLBACK_LINES are spoken when the LLM fails twice. They avoid gendered
-Hebrew second-person forms because the participant's gender is unknown
-(plan decision P2). Researcher review: these exact lines.
+FALLBACK_LINES are spoken when the LLM fails twice or the guardrail flags
+the line. Hebrew has a version per participant gender (plan decision P2);
+"neutral" is used when the gender is unknown. Researcher review: these
+exact lines.
 """
 
 SMALL_TALK_SYSTEM_PROMPT = """You are a friendly social robot who is about to interview, or has just interviewed, a candidate in a practice job interview. The candidate is an autistic adult practicing job interviews.
@@ -515,8 +579,8 @@ Rules:
 - If the candidate just said something, respond to what they said.
 - Never evaluate the candidate, and never comment on how they speak (tone, confidence, eye contact, length, clarity, structure).
 - Avoid sensitive topics: health, family, politics, religion, money.
-- In Hebrew, prefer phrasing that avoids gender-marked second-person forms (for example "מה שלומך?").
 - No emoji, no stage directions, no quotation marks around the line.
+{gender_rule}
 
 This line's job: {role}
 
@@ -533,20 +597,40 @@ ROLES = {
 
 FALLBACK_LINES = {
     "he": {
-        "opening_first": "שלום, נעים מאוד. מה שלומך היום?",
-        "opening_middle": "נעים מאוד, נמשיך.",
-        "opening_last": "עוד מעט נתחיל בשאלות הראיון. אפשר להתחיל?",
-        "closing_first": "תודה רבה על הראיון. יש שאלות שתרצו לשאול אותי?",
-        "closing_middle": "תודה. יש עוד משהו?",
-        "closing_last": "תודה רבה, היה נעים מאוד. להתראות!",
+        "neutral": {
+            "opening_first": "שלום, נעים מאוד. מה שלומך היום?",
+            "opening_middle": "נעים מאוד, נמשיך.",
+            "opening_last": "עוד מעט נתחיל בשאלות הראיון. אפשר להתחיל?",
+            "closing_first": "תודה רבה על הראיון. יש שאלות שתרצו לשאול אותי?",
+            "closing_middle": "תודה. יש עוד משהו?",
+            "closing_last": "תודה רבה, היה נעים מאוד. להתראות!",
+        },
+        "male": {
+            "opening_first": "שלום, נעים מאוד. איך אתה מרגיש היום?",
+            "opening_middle": "נעים מאוד, בוא נמשיך.",
+            "opening_last": "עוד מעט נתחיל בשאלות הראיון. אתה מוכן?",
+            "closing_first": "תודה רבה על הראיון. יש לך שאלות אליי?",
+            "closing_middle": "תודה. יש עוד משהו שתרצה לשאול?",
+            "closing_last": "תודה רבה, היה נעים מאוד. להתראות!",
+        },
+        "female": {
+            "opening_first": "שלום, נעים מאוד. איך את מרגישה היום?",
+            "opening_middle": "נעים מאוד, בואי נמשיך.",
+            "opening_last": "עוד מעט נתחיל בשאלות הראיון. את מוכנה?",
+            "closing_first": "תודה רבה על הראיון. יש לך שאלות אליי?",
+            "closing_middle": "תודה. יש עוד משהו שתרצי לשאול?",
+            "closing_last": "תודה רבה, היה נעים מאוד. להתראות!",
+        },
     },
     "en": {
-        "opening_first": "Hello, nice to meet you. How is your day going?",
-        "opening_middle": "Nice to meet you. Let's continue.",
-        "opening_last": "We'll start the interview questions soon. Ready to begin?",
-        "closing_first": "Thank you for the interview. Do you have any questions for me?",
-        "closing_middle": "Thank you. Is there anything else?",
-        "closing_last": "Thank you, it was nice talking with you. Goodbye!",
+        "neutral": {
+            "opening_first": "Hello, nice to meet you. How is your day going?",
+            "opening_middle": "Nice to meet you. Let's continue.",
+            "opening_last": "We'll start the interview questions soon. Ready to begin?",
+            "closing_first": "Thank you for the interview. Do you have any questions for me?",
+            "closing_middle": "Thank you. Is there anything else?",
+            "closing_last": "Thank you, it was nice talking with you. Goodbye!",
+        },
     },
 }
 ```
@@ -560,9 +644,11 @@ decision 5), generated from the dialogue so far so every session sounds
 different. No researcher approval (spec decision 6); every line is still
 written to the website as the turn's question_text.
 
-Never raises: after one retry it falls back to a fixed line.
+Never raises: after one retry, or if the No-Masking guardrail flags the
+line, it falls back to a fixed line in the participant's gender.
 """
 
+import guardrail
 import llm_line
 from prompts.small_talk_prompt import FALLBACK_LINES, ROLES, SMALL_TALK_SYSTEM_PROMPT
 
@@ -584,13 +670,23 @@ def format_history(history: list) -> str:
     return "\n".join(f"{_SPEAKER_NAMES[h['speaker']]}: {h['text']}" for h in history)
 
 
-def generate_line(phase: str, position: int, total: int, expects_answer: bool,
-                  history: list, language: str = "he") -> str:
+def _fallback(lang: str, participant_gender, role: str) -> str:
+    forms = FALLBACK_LINES[lang]
+    return (forms.get(participant_gender) or forms["neutral"])[role]
+
+
+def generate_line(phase: str, position: int, total: int, expects_answer: bool, history: list,
+                  language: str = "he", participant_gender=None, robot_gender=None) -> str:
     lang = llm_line.language_or_default(language)
     role = role_for(phase, position, total, expects_answer)
-    system = SMALL_TALK_SYSTEM_PROMPT.format(language=llm_line.LANGUAGE_NAMES[lang], role=ROLES[role])
+    system = SMALL_TALK_SYSTEM_PROMPT.format(
+        language=llm_line.LANGUAGE_NAMES[lang], role=ROLES[role],
+        gender_rule=llm_line.gender_rule(lang, participant_gender, robot_gender))
     user = format_history(history) or "(The conversation has not started yet.)"
-    return llm_line.request_line(system, user) or FALLBACK_LINES[lang][role]
+    line = llm_line.request_line(system, user)
+    if line and guardrail.check_rationale(line).passed:
+        return line
+    return _fallback(lang, participant_gender, role)
 ```
 
 - [ ] **Step 4: Run the tests and see them pass**
@@ -602,22 +698,59 @@ Expected: all PASS.
 
 ```bash
 git add llm_line.py prompts/small_talk_prompt.py small_talk.py tests/test_llm_line.py tests/test_small_talk.py
-git commit -m "Add small-talk line generator with fixed fallbacks"
+git commit -m "Add small-talk line generator with gendered Hebrew fallbacks"
 ```
 
 ---
 
-### Task 4: Content-only acknowledgement for non-PBDI answers
+### Task 4: Hebrew guardrail phrases, and the content-only acknowledgement
 
 **Files:**
+- Modify: `config.py` (`NO_MASKING_FLAG_PATTERNS`, methodology-locked; the researcher approves the exact words below with this plan)
 - Create: `prompts/acknowledgement_prompt.py`, `acknowledgement.py`
-- Test: `tests/test_acknowledgement.py`
+- Test: `tests/test_guardrail.py` (add tests), `tests/test_acknowledgement.py`
 
 **Interfaces:**
-- Consumes: `llm_line.request_line`, `llm_line.language_or_default`, `llm_line.LANGUAGE_NAMES` (Task 3), `guardrail.check_rationale(text) -> GuardrailResult`
-- Produces: `acknowledgement.acknowledge(question: str, answer: str, language: str = "he") -> {"line": str, "guardrail_flag": bool, "guardrail_reason": str}`
+- Consumes: `llm_line.request_line`, `llm_line.language_or_default`, `llm_line.LANGUAGE_NAMES`, `llm_line.gender_rule` (Task 3), `guardrail.check_rationale(text) -> GuardrailResult`
+- Produces: `acknowledgement.acknowledge(question: str, answer: str, language: str = "he", participant_gender=None, robot_gender=None) -> {"line": str, "guardrail_flag": bool, "guardrail_reason": str}`
 
-- [ ] **Step 1: Write the failing tests.** `tests/test_acknowledgement.py`:
+The Hebrew phrases (plan decision P3) describe **delivery** or **grade the
+answer**, like the English list. They are whole phrases, not single words,
+because the guardrail is a literal substring match. A robot line that
+repeats the participant's own content (for example "you were stressed at
+work") must not be flagged. Both gender forms are listed where they differ.
+They never match the evaluator's English rationale, so the existing routing
+in `graph.py` is unaffected.
+
+- [ ] **Step 1: Write the failing tests.** Add to `tests/test_guardrail.py`:
+
+```python
+import pytest
+
+import guardrail
+
+
+@pytest.mark.parametrize("line", [
+    "תודה. שמתי לב שלא היה קשר עין.",
+    "נשמעת לחוצה, אבל נמשיך.",
+    "תשובה מצוינת! נמשיך.",
+    "כדאי לשים לב למבנה התשובה.",
+    "התשובה הייתה ארוכה מדי.",
+])
+def test_hebrew_delivery_and_praise_lines_are_flagged(line):
+    assert guardrail.check_rationale(line).passed is False
+
+
+@pytest.mark.parametrize("line", [
+    "תודה, אז היית לחוץ בעבודה הקודמת ולמדת לתעדף משימות. נמשיך.",
+    "תודה, אז עבדת שלוש שנים בשירות לקוחות. נמשיך.",
+    "בעצם הרגשתי שמחה, כי סיפרת שהצלחת בפרויקט.",
+])
+def test_hebrew_content_lines_pass(line):
+    assert guardrail.check_rationale(line).passed is True
+```
+
+`tests/test_acknowledgement.py`:
 
 ```python
 import acknowledgement
@@ -627,25 +760,27 @@ from prompts.acknowledgement_prompt import FALLBACK_LINES
 def test_acknowledge_returns_clean_line(monkeypatch):
     seen = {}
     monkeypatch.setattr(acknowledgement.llm_line, "request_line",
-                        lambda system, user_message: seen.update(user=user_message)
+                        lambda system, user_message: seen.update(system=system, user=user_message)
                         or "תודה, אז עבדת שלוש שנים בשירות לקוחות. נמשיך.")
 
-    ack = acknowledgement.acknowledge("ספר/י על עצמך", "עבדתי שלוש שנים בשירות לקוחות", "he")
+    ack = acknowledgement.acknowledge("ספר/י על עצמך", "עבדתי שלוש שנים בשירות לקוחות", "he",
+                                      participant_gender="female")
 
     assert ack == {"line": "תודה, אז עבדת שלוש שנים בשירות לקוחות. נמשיך.",
                    "guardrail_flag": False, "guardrail_reason": ""}
     assert "עבדתי שלוש שנים" in seen["user"]
+    assert "feminine form" in seen["system"]
 
 
 def test_flagged_line_is_replaced_by_fallback(monkeypatch):
     monkeypatch.setattr(acknowledgement.llm_line, "request_line",
-                        lambda system, user_message: "Thanks. You seemed nervous, but let's continue.")
+                        lambda system, user_message: "תשובה מצוינת, נמשיך.")
 
-    ack = acknowledgement.acknowledge("Q", "A", "en")
+    ack = acknowledgement.acknowledge("Q", "A", "he")
 
-    assert ack["line"] == FALLBACK_LINES["en"]
+    assert ack["line"] == FALLBACK_LINES["he"]
     assert ack["guardrail_flag"] is True
-    assert "seemed nervous" in ack["guardrail_reason"]
+    assert "תשובה מצוינת" in ack["guardrail_reason"]
 
 
 def test_llm_failure_falls_back_without_flag(monkeypatch):
@@ -658,10 +793,39 @@ def test_llm_failure_falls_back_without_flag(monkeypatch):
 
 - [ ] **Step 2: Run them to see them fail**
 
-Run: `pytest tests/test_acknowledgement.py -v`
-Expected: FAIL with `ModuleNotFoundError: No module named 'acknowledgement'`.
+Run: `pytest tests/test_guardrail.py tests/test_acknowledgement.py -v`
+Expected: FAIL. The Hebrew lines are not flagged yet, and the
+`acknowledgement` module doesn't exist.
 
-- [ ] **Step 3: Implement.** `prompts/acknowledgement_prompt.py`:
+- [ ] **Step 3: Implement.** In `config.py`, append these entries at the end of
+  `NO_MASKING_FLAG_PATTERNS`, before the closing `]`, and keep every
+  existing entry:
+
+```python
+    # Hebrew equivalents, approved by the researcher on 2026-11-08 (Plan 2,
+    # decision P3). Whole phrases, because matching is literal-substring:
+    # a robot line that repeats the participant's own content ("היית לחוץ
+    # בעבודה") must not be flagged. Both gender forms where they differ.
+    "קשר עין",
+    "שפת גוף",
+    "טון הדיבור",
+    "מונוטוני",
+    "נשמעת לחוץ", "נשמעת לחוצה",
+    "נראית לחוץ", "נראית לחוצה",
+    "נשמעת בטוח", "נשמעת בטוחה",
+    "חוסר התלהבות",
+    "ישיר מדי", "ישירה מדי",
+    "בוטה מדי",
+    "מבנה התשובה",
+    "לא בפורמט STAR",
+    "ארוכה מדי", "קצרה מדי",
+    "לא הרחבת מספיק",
+    "נשמעת רובוטי",
+    "גמגום",
+    "תשובה מצוינת", "תשובה טובה", "תשובה מעולה", "כל הכבוד",
+```
+
+`prompts/acknowledgement_prompt.py`:
 
 ```python
 """
@@ -680,7 +844,7 @@ Strict rules:
 - Never comment on HOW they answered: confidence, tone, structure, length, clarity, eye contact, directness, enthusiasm.
 - Never grade or praise the answer (no "great answer", "good point", "excellent").
 - No advice, no follow-up question, no emoji.
-- In Hebrew, prefer phrasing that avoids gender-marked second-person forms.
+{gender_rule}
 
 Respond with ONLY a JSON object: {{"line": "<the robot's line>"}}"""
 
@@ -692,13 +856,9 @@ FALLBACK_LINES = {"he": "תודה, נמשיך.", "en": "Thank you, let's continu
 ```python
 """
 acknowledgement.py -- content-only robot reply after a non-PBDI Main answer
-(spec decision 7). One LLM line, checked by the No-Masking guardrail; if
-the guardrail flags it, or the LLM fails twice, the robot says the fixed
-fallback instead. Never raises.
-
-Note (plan decision P3): config.NO_MASKING_FLAG_PATTERNS are English, so
-the guardrail barely checks Hebrew lines. Adding Hebrew patterns is a
-methodology decision left to the researcher.
+(spec decision 7). One LLM line, checked by the No-Masking guardrail
+(English and Hebrew phrases, plan decision P3); if the guardrail flags it,
+or the LLM fails twice, the robot says the fixed fallback. Never raises.
 """
 
 import guardrail
@@ -706,9 +866,12 @@ import llm_line
 from prompts.acknowledgement_prompt import ACKNOWLEDGEMENT_SYSTEM_PROMPT, FALLBACK_LINES
 
 
-def acknowledge(question: str, answer: str, language: str = "he") -> dict:
+def acknowledge(question: str, answer: str, language: str = "he",
+                participant_gender=None, robot_gender=None) -> dict:
     lang = llm_line.language_or_default(language)
-    system = ACKNOWLEDGEMENT_SYSTEM_PROMPT.format(language=llm_line.LANGUAGE_NAMES[lang])
+    system = ACKNOWLEDGEMENT_SYSTEM_PROMPT.format(
+        language=llm_line.LANGUAGE_NAMES[lang],
+        gender_rule=llm_line.gender_rule(lang, participant_gender, robot_gender))
     line = llm_line.request_line(system, f"Interview question: {question}\n\nCandidate answer: {answer}")
     if line is None:
         return {"line": FALLBACK_LINES[lang], "guardrail_flag": False, "guardrail_reason": ""}
@@ -719,16 +882,18 @@ def acknowledge(question: str, answer: str, language: str = "he") -> dict:
     return {"line": line, "guardrail_flag": False, "guardrail_reason": ""}
 ```
 
-- [ ] **Step 4: Run the tests and see them pass**
+- [ ] **Step 4: Run all tests and see them pass**
 
-Run: `pytest tests/test_acknowledgement.py -v`
-Expected: all PASS.
+Run: `pytest tests/ -q`
+Expected: all PASS. If an existing guardrail or graph test counts the
+pattern list's length, update its expected number. Never remove an
+existing pattern.
 
 - [ ] **Step 5: Commit**
 
 ```bash
-git add prompts/acknowledgement_prompt.py acknowledgement.py tests/test_acknowledgement.py
-git commit -m "Add guardrail-checked content-only acknowledgement"
+git add config.py prompts/acknowledgement_prompt.py acknowledgement.py tests/test_guardrail.py tests/test_acknowledgement.py
+git commit -m "Add researcher-approved Hebrew guardrail phrases and content-only acknowledgement"
 ```
 
 ---
@@ -1021,21 +1186,21 @@ git commit -m "Grade PE answers Correct/Partial/Wrong with Shaver-family Hebrew 
 
 ---
 
-### Task 6: PE feedback line, and the classifier's cue as the "why"
+### Task 6: PE feedback line with an LLM-written reason
 
 **Files:**
 - Create: `prompts/pe_feedback_prompt.py`, `pe_feedback.py`, `tests/test_llm_smoke.py`
-- Modify: `emotion_classifier.py` (add `classify_emotion_detailed`), `engine_worker.py` (`build_proposal`)
-- Test: `tests/test_pe_feedback.py`, `tests/test_emotion_classifier.py` (add tests), `tests/test_engine_worker.py` (`test_process_turn_writes_proposal_and_moves_to_approval`)
+- Test: `tests/test_pe_feedback.py`
 
 **Interfaces:**
-- Consumes: `llm_line` (Task 3), `prompts.pe_check_prompt.HEBREW_NAMES` (Task 5)
-- Produces:
-  - `pe_feedback.generate_feedback(target_emotion: str, reason: str, guess: str, result: str, language: str = "he") -> str`.
-    Never raises.
-  - `emotion_classifier.classify_emotion_detailed(question, answer_text) -> {"emotion", "intensity", "cue"}`.
-    `cue` is `""` when the model named none, or on fallback.
-  - `build_proposal(...)["pe_answer_why"]` is the cue.
+- Consumes: `llm_line` (Task 3), `prompts.pe_check_prompt.HEBREW_NAMES` (Task 5), `guardrail.check_rationale`
+- Produces: `pe_feedback.generate_feedback(target_emotion: str, question: str, answer: str, guess: str, result: str, language: str = "he", participant_gender=None, robot_gender=None) -> {"line": str, "reason": str}`.
+  Never raises. On fallback, `reason` is `""`.
+
+Plan decision P1: the same LLM call writes the reason (what in the
+participant's answer made the robot feel this) and the spoken line. Task 9
+stores the reason in `Turn.pe_answer_why` at grading time, so the researcher
+sees it next to the feedback. The emotion classifier is not changed.
 
 - [ ] **Step 1: Write the failing tests.** `tests/test_pe_feedback.py`:
 
@@ -1043,104 +1208,75 @@ git commit -m "Grade PE answers Correct/Partial/Wrong with Shaver-family Hebrew 
 import pe_feedback
 
 
-def test_feedback_line_gets_all_inputs(monkeypatch):
+def _fake_json(monkeypatch, reply):
     seen = {}
-    monkeypatch.setattr(pe_feedback.llm_line, "request_line",
-                        lambda system, user_message: seen.update(system=system, user=user_message)
-                        or "כמעט! בעצם הרגשתי שמחה, כי סיפרת שהצלחת בפרויקט.")
 
-    line = pe_feedback.generate_feedback("HAPPINESS", "הצלחתי בפרויקט", "התלהבת", "Partial", "he")
+    def fake(system, user_message, required=("line",), **kwargs):
+        seen.update(system=system, user=user_message, required=required)
+        return reply
 
-    assert line.startswith("כמעט")
-    assert "TARGET: HAPPINESS (שמחה)" in seen["user"]
-    assert "REASON: הצלחתי בפרויקט" in seen["user"]
-    assert "GUESS: התלהבת" in seen["user"]
-    assert "GRADE: Partial" in seen["user"]
-    assert "Hebrew" in seen["system"]
+    monkeypatch.setattr(pe_feedback.llm_line, "request_json", fake)
+    return seen
+
+
+def test_feedback_gets_all_inputs_and_returns_line_and_reason(monkeypatch):
+    seen = _fake_json(monkeypatch, {"line": "כמעט! בעצם הרגשתי שמחה, כי סיפרת שהצלחת בפרויקט.",
+                                    "reason": "סיפרת שהצלחת בפרויקט"})
+
+    out = pe_feedback.generate_feedback("HAPPINESS", "ספר/י על הצלחה", "הצלחתי בפרויקט גדול",
+                                        "התלהבת", "Partial", "he", participant_gender="male")
+
+    assert out == {"line": "כמעט! בעצם הרגשתי שמחה, כי סיפרת שהצלחת בפרויקט.",
+                   "reason": "סיפרת שהצלחת בפרויקט"}
+    assert set(seen["required"]) == {"line", "reason"}
+    for part in ("TARGET: HAPPINESS (שמחה)", "QUESTION: ספר/י על הצלחה",
+                 "ANSWER: הצלחתי בפרויקט גדול", "GUESS: התלהבת", "GRADE: Partial"):
+        assert part in seen["user"]
+    assert "Hebrew" in seen["system"] and "masculine form" in seen["system"]
 
 
 def test_feedback_falls_back_to_naming_the_emotion(monkeypatch):
-    monkeypatch.setattr(pe_feedback.llm_line, "request_line", lambda system, user_message: None)
-    assert pe_feedback.generate_feedback("SADNESS", "", "שמחת", "Wrong", "he") == "בעצם הרגשתי עצב."
-    assert pe_feedback.generate_feedback("SADNESS", "", "happy", "Wrong", "en") == "I actually felt sadness."
+    _fake_json(monkeypatch, None)
+    assert pe_feedback.generate_feedback("SADNESS", "Q", "A", "שמחת", "Wrong", "he") == {
+        "line": "בעצם הרגשתי עצב.", "reason": ""}
+    assert pe_feedback.generate_feedback("SADNESS", "Q", "A", "happy", "Wrong", "en") == {
+        "line": "I actually felt sadness.", "reason": ""}
 
 
-def test_missing_reason_is_marked(monkeypatch):
-    seen = {}
-    monkeypatch.setattr(pe_feedback.llm_line, "request_line",
-                        lambda system, user_message: seen.update(user=user_message) or "x")
-    pe_feedback.generate_feedback("FEAR", "", "פחדת", "Correct")
-    assert "REASON: (not recorded)" in seen["user"]
-```
-
-Add to `tests/test_emotion_classifier.py`:
-
-```python
-def test_classify_emotion_detailed_keeps_the_cue(monkeypatch):
-    monkeypatch.setattr(
-        emotion_classifier.llm_client, "call_llm",
-        lambda **k: '{"cue": "I was proud", "emotion": "HAPPINESS", "intensity": 2}'
-    )
-    result = emotion_classifier.classify_emotion_detailed("Q", "A")
-    assert result == {"emotion": "HAPPINESS", "intensity": 2, "cue": "I was proud"}
-
-
-def test_classify_emotion_detailed_none_cue_is_empty(monkeypatch):
-    monkeypatch.setattr(
-        emotion_classifier.llm_client, "call_llm",
-        lambda **k: '{"cue": "none", "emotion": "CALM", "intensity": 1}'
-    )
-    assert emotion_classifier.classify_emotion_detailed("Q", "A")["cue"] == ""
-
-
-def test_classify_emotion_detailed_fallback_has_empty_cue(monkeypatch):
-    monkeypatch.setattr(emotion_classifier.llm_client, "call_llm", lambda **k: "not json")
-    assert emotion_classifier.classify_emotion_detailed("Q", "A") == {
-        "emotion": "SURPRISE", "intensity": 2, "cue": ""}
-```
-
-In `tests/test_engine_worker.py`, in `test_process_turn_writes_proposal_and_moves_to_approval`, replace the
-`classify_emotion` patch with:
-
-```python
-    monkeypatch.setattr(engine_worker.emotion_classifier, "classify_emotion_detailed",
-                        lambda q, a: {"emotion": "HAPPINESS", "intensity": 3, "cue": "סיימתי בזמן"})
-```
-
-and add at the end of that test:
-
-```python
-    assert saved["pe_answer_why"] == "סיימתי בזמן"
+def test_flagged_feedback_falls_back(monkeypatch):
+    _fake_json(monkeypatch, {"line": "הרגשתי שמחה כי נשמעת בטוחה.", "reason": "נשמעת בטוחה"})
+    assert pe_feedback.generate_feedback("HAPPINESS", "Q", "A", "שמחת", "Correct")["line"] == "בעצם הרגשתי שמחה."
 ```
 
 - [ ] **Step 2: Run them to see them fail**
 
-Run: `pytest tests/test_pe_feedback.py tests/test_emotion_classifier.py tests/test_engine_worker.py -v`
-Expected: FAIL. `pe_feedback` is missing, `classify_emotion_detailed` is missing,
-and `pe_answer_why` still holds the rationale.
+Run: `pytest tests/test_pe_feedback.py -v`
+Expected: FAIL with `ModuleNotFoundError: No module named 'pe_feedback'`.
 
 - [ ] **Step 3: Implement.** `prompts/pe_feedback_prompt.py`:
 
 ```python
 """
 PE feedback prompt: after the participant guesses what the robot felt,
-the robot reveals the emotion and why (spec decision 8). The reason must
-point to WHAT the participant said, never HOW (No-Masking). The researcher
-approves every line before the robot says it.
+the robot reveals the emotion and why (spec decision 8). The reason is
+written by this call from the question and the participant's answer
+(plan decision P1) and must point to WHAT the participant said, never HOW
+(No-Masking). The researcher approves every line before the robot says it.
 """
 
-PE_FEEDBACK_SYSTEM_PROMPT = """You are a social robot interviewer in a practice job interview with an autistic adult. After you reacted to their answer, you asked "What do you think I felt, and why?". Now you tell them what you actually felt.
+PE_FEEDBACK_SYSTEM_PROMPT = """You are a social robot interviewer in a practice job interview with an autistic adult. After you reacted to their answer, you asked "What do you think I felt, and why?". Now you tell them what you actually felt, and why.
 
-You get: the emotion you actually showed (TARGET, with its Hebrew name), the REASON (the words in the candidate's earlier answer that made you feel it), the candidate's GUESS, and the GRADE (Correct / Partial / Wrong).
+You get: the interview QUESTION, the candidate's ANSWER, the emotion you actually showed (TARGET, with its Hebrew name), the candidate's GUESS, and the GRADE (Correct / Partial / Wrong).
 
-Write 1-2 short spoken sentences in {language}, in the first person:
-- Correct: confirm warmly, name the emotion, and give the reason.
-- Partial: say they were close, name the emotion you actually felt, and give the reason.
-- Wrong: kindly say what you actually felt, and give the reason.
-The reason must point to WHAT the candidate said, never to HOW they said it (tone, confidence, eye contact, length, structure). If the REASON mentions how they spoke, ignore that part. Do not grade their interview answer. No emoji.
-In Hebrew, prefer phrasing that avoids gender-marked second-person forms.
+1. "reason": a short phrase in {language} naming what in the candidate's ANSWER made you feel the TARGET emotion. It must point to WHAT they said (the content), never to HOW they said it (tone, confidence, eye contact, length, structure).
+2. "line": 1-2 short spoken sentences in {language}, in the first person:
+   - Correct: confirm warmly, name the emotion, and give the reason.
+   - Partial: say they were close, name the emotion you actually felt, and give the reason.
+   - Wrong: kindly say what you actually felt, and give the reason.
+   Do not grade their interview answer. No emoji.
+{gender_rule}
 
-Respond with ONLY a JSON object: {{"line": "<the robot's line>"}}"""
+Respond with ONLY a JSON object: {{"reason": "<the reason>", "line": "<the robot's line>"}}"""
 
 FALLBACK_TEMPLATES = {"he": "בעצם הרגשתי {name}.", "en": "I actually felt {name}."}
 ```
@@ -1150,78 +1286,39 @@ FALLBACK_TEMPLATES = {"he": "בעצם הרגשתי {name}.", "en": "I actually f
 ```python
 """
 pe_feedback.py -- the robot's line revealing what it actually felt and
-why, after the participant's PE guess (spec decision 8). Written to
-Turn.proposed_feedback; the researcher edits/approves it as final_feedback
-before the robot says it. Never raises: falls back to naming the emotion.
+why, after the participant's PE guess (spec decision 8). The line goes to
+Turn.proposed_feedback and the reason to Turn.pe_answer_why; the
+researcher edits/approves the line as final_feedback before the robot
+says it.
+
+Never raises: if the LLM fails twice, or the No-Masking guardrail flags
+the line or the reason, it falls back to just naming the emotion.
 """
 
+import guardrail
 import llm_line
 from prompts.pe_check_prompt import HEBREW_NAMES
 from prompts.pe_feedback_prompt import FALLBACK_TEMPLATES, PE_FEEDBACK_SYSTEM_PROMPT
 
 
-def generate_feedback(target_emotion: str, reason: str, guess: str, result: str, language: str = "he") -> str:
+def generate_feedback(target_emotion: str, question: str, answer: str, guess: str, result: str,
+                      language: str = "he", participant_gender=None, robot_gender=None) -> dict:
     lang = llm_line.language_or_default(language)
     hebrew = HEBREW_NAMES.get(target_emotion, target_emotion)
-    system = PE_FEEDBACK_SYSTEM_PROMPT.format(language=llm_line.LANGUAGE_NAMES[lang])
-    user = (f"TARGET: {target_emotion} ({hebrew})\n"
-            f"REASON: {reason or '(not recorded)'}\n"
+    system = PE_FEEDBACK_SYSTEM_PROMPT.format(
+        language=llm_line.LANGUAGE_NAMES[lang],
+        gender_rule=llm_line.gender_rule(lang, participant_gender, robot_gender))
+    user = (f"QUESTION: {question}\n"
+            f"ANSWER: {answer}\n"
+            f"TARGET: {target_emotion} ({hebrew})\n"
             f"GUESS: {guess}\n"
             f"GRADE: {result}")
-    line = llm_line.request_line(system, user)
-    if line:
-        return line
+    out = llm_line.request_json(system, user, required=("line", "reason"))
+    if out and guardrail.check_rationale(f"{out['line']} {out['reason']}").passed:
+        return {"line": out["line"], "reason": out["reason"]}
     name = hebrew if lang == "he" else target_emotion.lower()
-    return FALLBACK_TEMPLATES[lang].format(name=name)
+    return {"line": FALLBACK_TEMPLATES[lang].format(name=name), "reason": ""}
 ```
-
-In `emotion_classifier.py`, rename the body of `classify_emotion` to
-`classify_emotion_detailed` and keep `classify_emotion` as a thin wrapper.
-The prompt, temperature and validation stay exactly as they are:
-
-```python
-def classify_emotion_detailed(question: str, answer_text: str) -> dict:
-    """classify_emotion() plus the "cue" the model named: the words in the
-    answer behind the emotion. Used as the PE answer key's "why"
-    (Turn.pe_answer_why, plan decision P1). "" when the model named none."""
-    user_message = f"Interview question: {question}\n\nCandidate answer: {answer_text}"
-
-    raw = llm_client.call_llm(
-        system=_SYSTEM_PROMPT,
-        user_message=user_message,
-        max_tokens=80,
-        temperature=0.8,  # variety over reproducibility -- see spec
-    )
-    raw = _strip_fences(raw)
-
-    try:
-        data = json.loads(raw)
-        emotion = data["emotion"]
-        intensity = int(data["intensity"])
-        if emotion not in EMOTION_TO_VALENCE or intensity not in INTENSITY_TO_AROUSAL:
-            raise ValueError(f"Unexpected emotion/intensity: {data!r}")
-    except (json.JSONDecodeError, KeyError, ValueError, TypeError):
-        return {**_FALLBACK, "cue": ""}
-
-    cue = str(data.get("cue", "")).strip()
-    return {"emotion": emotion, "intensity": intensity, "cue": "" if cue.lower() == "none" else cue}
-
-
-def classify_emotion(question: str, answer_text: str) -> dict:
-    result = classify_emotion_detailed(question, answer_text)
-    return {"emotion": result["emotion"], "intensity": result["intensity"]}
-```
-
-In `engine_worker.build_proposal`:
-- In the Mock branch, add `cue = ""`.
-- In the non-Mock branch, replace
-  `reaction = emotion_classifier.classify_emotion(question, answer)` with
-  `reaction = emotion_classifier.classify_emotion_detailed(question, answer)`,
-  and add `cue = reaction["cue"]`.
-- Replace the answer-key line
-  `"pe_answer_why": ev_fields["engine_rationale"],` with `"pe_answer_why": cue,`
-  and change its comment to:
-  `# answer key for the PE step: the classifier's cue (plan decision P1); shown to the researcher only after the participant answers`.
 
 `tests/test_llm_smoke.py` (real LLM, skipped unless asked):
 
@@ -1267,7 +1364,7 @@ def test_pe_check_spec_examples(answer, expected):
     assert pe_check.grade_pe_answer("HAPPINESS", answer)["result"] == expected
 ```
 
-- [ ] **Step 4: Run the tests and see them pass**
+- [ ] **Step 4: Run all tests and see them pass**
 
 Run: `pytest tests/ -q`
 Expected: everything PASSES. The smoke tests show as skipped.
@@ -1275,8 +1372,8 @@ Expected: everything PASSES. The smoke tests show as skipped.
 - [ ] **Step 5: Commit**
 
 ```bash
-git add prompts/pe_feedback_prompt.py pe_feedback.py emotion_classifier.py engine_worker.py tests/test_pe_feedback.py tests/test_emotion_classifier.py tests/test_engine_worker.py tests/test_llm_smoke.py
-git commit -m "Add PE feedback line; use the classifier's cue as the PE answer key's why"
+git add prompts/pe_feedback_prompt.py pe_feedback.py tests/test_pe_feedback.py tests/test_llm_smoke.py
+git commit -m "Add PE feedback line with an LLM-written, content-only reason"
 ```
 
 ---
@@ -1284,9 +1381,9 @@ git commit -m "Add PE feedback line; use the classifier's cue as the PE answer k
 ### Task 7: Worker plumbing: shared helpers, shared fakes, heartbeat thread, current model
 
 **Files:**
-- Create: `worker_common.py`, `tests/fakes.py`
-- Modify: `engine_worker.py` (helpers, heartbeat, `main`), `llm_client.py` (`current_model`)
-- Test: `tests/test_engine_worker.py` (use the shared fakes, add heartbeat tests), `tests/test_llm_client.py` (add a test)
+- Create: `worker_common.py`, `tests/fakes.py`, `hebrew_gender.py`
+- Modify: `engine_worker.py` (helpers, heartbeat, `main`, `speech_context`), `llm_client.py` (`current_model`), `config.py` (`VOICE_GENDERS`)
+- Test: `tests/test_engine_worker.py` (use the shared fakes, add heartbeat and speech-context tests), `tests/test_llm_client.py` (add a test), `tests/test_hebrew_gender.py`
 
 **Interfaces:**
 - Produces:
@@ -1295,6 +1392,10 @@ git commit -m "Add PE feedback line; use the classifier's cue as the PE answer k
   - `llm_client.current_model() -> str`
   - `engine_worker.heartbeat_once() -> None` (never raises `Base44Error`)
   - `engine_worker.start_heartbeat_thread() -> threading.Thread`
+  - `engine_worker.speech_context(session) -> {"participant_gender": "male"|"female"|None, "robot_gender": "male"|"female"|None}`.
+    Cached per session.
+  - `hebrew_gender.render(text: str, gender=None) -> str`
+  - `config.VOICE_GENDERS: dict[str, str]`
   - `tests/fakes.py`: `FakeBase44` (as before, plus `statuses(record_id) -> list[str]`),
     `FakeRobot(heard=(), connected=True)` with `say`, `react`, `listen`,
     `health_check`, `.calls` and `said()`, and `heard(text) -> dict`.
@@ -1524,16 +1625,160 @@ In `main()`:
 - The loop keeps `robot_connected = furhat_client.health_check()` for
   `poll_once`.
 
-- [ ] **Step 6: Run all tests and see them pass**
+- [ ] **Step 6: Write the failing tests for the Hebrew gender helpers.** In
+  `tests/test_engine_worker.py`, add `monkeypatch.setattr(engine_worker, "_speech_context", {})`
+  to the `fake` fixture, then add:
+
+```python
+def test_speech_context_reads_participant_and_voice_once(fake, monkeypatch):
+    participant = fake.add("Participant", gender="Female")
+    persona = fake.add("Persona", furhat_voice="AvriNeural")
+    session = fake.add("Session", participant=participant["id"], persona=persona["id"])
+
+    assert engine_worker.speech_context(session) == {"participant_gender": "female", "robot_gender": "male"}
+
+    monkeypatch.setattr(fake, "get_record", lambda *a: pytest.fail("cached: no second lookup"))
+    assert engine_worker.speech_context(session)["participant_gender"] == "female"
+
+
+def test_speech_context_without_participant_or_persona(fake):
+    session = fake.add("Session")
+    assert engine_worker.speech_context(session) == {"participant_gender": None, "robot_gender": None}
+
+
+def test_speech_context_base44_error_is_not_cached(fake, monkeypatch):
+    session = fake.add("Session", participant="p1")
+
+    def boom(entity, record_id):
+        raise engine_worker.b44.Base44Error("timeout")
+
+    monkeypatch.setattr(fake, "get_record", boom)
+    assert engine_worker.speech_context(session) == {"participant_gender": None, "robot_gender": None}
+    assert session["id"] not in engine_worker._speech_context
+```
+
+`tests/test_hebrew_gender.py`:
+
+```python
+import pytest
+
+import hebrew_gender
+
+
+@pytest.mark.parametrize("text,male,female", [
+    ("ספר/י על עצמך", "ספר על עצמך", "ספרי על עצמך"),
+    ("מה תעשה/י אם המנהל יבקש", "מה תעשה אם המנהל יבקש", "מה תעשי אם המנהל יבקש"),
+    ("איך היית מתמודד/ת עם לקוח?", "איך היית מתמודד עם לקוח?", "איך היית מתמודדת עם לקוח?"),
+    ("האם את/ה מוכן/ה?", "האם את מוכן?", "האם אתה מוכנה?"),
+    ("אתה/את מוכן/ה?", "אתה מוכן?", "את מוכנה?"),
+    ("עבודה ו/או לימודים", "עבודה ו/או לימודים", "עבודה ו/או לימודים"),
+    ("שאלה בלי לוכסן", "שאלה בלי לוכסן", "שאלה בלי לוכסן"),
+])
+def test_render(text, male, female):
+    assert hebrew_gender.render(text, "male") == male
+    assert hebrew_gender.render(text, "female") == female
+    assert hebrew_gender.render(text, None) == male  # unknown gender: first form, as written
+```
+
+Note: `"את/ה"` is written with the feminine form first. The rule can't tell,
+so it comes out reversed (`"אתה"` for a female participant). The test pins this known limit. If
+the real question bank uses `"את/ה"`, the researcher should rewrite it as
+`"אתה/את"`. The live check (Task 11) catches any others.
+
+Run: `pytest tests/test_hebrew_gender.py tests/test_engine_worker.py -v`
+Expected: FAIL. `hebrew_gender` and `speech_context` don't exist yet.
+
+- [ ] **Step 7: Implement.** `hebrew_gender.py`:
+
+```python
+"""
+hebrew_gender.py -- resolves the question bank's slash forms ("ספר/י",
+"מתמודד/ת", "אתה/את") into one spoken form for the participant's gender
+(plan decision P2), so the robot never reads a slash aloud.
+
+Rule-based: in "<base>/<alt>", an alt in _SUFFIXES is a feminine suffix
+(base + suffix; a base ending in ה drops it before a י suffix: תעשה/י ->
+תעשי; a final letter turns regular: מוכן/ה -> מוכנה). Any other alt is a
+whole alternative word (אתה/את). "ו/או" (and/or) is left alone.
+Unknown gender -> the first form, as written.
+"""
+
+import re
+
+_SLASH_FORM = re.compile(r"([א-ת]+)/([א-ת]+)")
+_FINAL_TO_REGULAR = str.maketrans("ךםןףץ", "כמנפצ")
+_SUFFIXES = ("י", "ת", "ה", "ית")
+
+
+def _feminine(base: str, alt: str) -> str:
+    if alt not in _SUFFIXES:
+        return alt
+    if alt == "י" and base.endswith("ה"):
+        return base[:-1] + "י"
+    return base[:-1] + base[-1].translate(_FINAL_TO_REGULAR) + alt
+
+
+def render(text: str, gender=None) -> str:
+    def pick(match):
+        base, alt = match.group(1), match.group(2)
+        if alt == "או":
+            return match.group(0)
+        return _feminine(base, alt) if gender == "female" else base
+
+    return _SLASH_FORM.sub(pick, text)
+```
+
+In `config.py`, after `LISTEN_MAX_SPEECH_MS`, add:
+
+```python
+# Grammatical gender of each Furhat Hebrew voice: the robot speaks about
+# itself in this form (Plan 2, decision P2). Voices not listed -> neutral.
+VOICE_GENDERS = {"AvriNeural": "male", "HilaNeural": "female", "Hila:DragonLatestNeural": "female"}
+```
+
+In `engine_worker.py`, add after `apply_persona`:
+
+```python
+# ── Hebrew gender of the robot's lines ──────────────────────────────────────
+
+_speech_context = {}  # session id -> {"participant_gender", "robot_gender"}
+
+_PARTICIPANT_GENDERS = {"Male": "male", "Female": "female"}
+
+
+def speech_context(session: dict) -> dict:
+    """The participant's gender (Participant.gender) and the robot's (its Persona voice), for
+    Hebrew wording (plan decision P2). Looked up once per session; a lookup error is not
+    cached, so the next poll tries again."""
+    if session["id"] in _speech_context:
+        return _speech_context[session["id"]]
+    context = {"participant_gender": None, "robot_gender": None}
+    try:
+        if session.get("participant"):
+            gender = b44.get_record("Participant", session["participant"]).get("gender")
+            context["participant_gender"] = _PARTICIPANT_GENDERS.get(gender)
+        if session.get("persona"):
+            voice = b44.get_record("Persona", session["persona"]).get("furhat_voice")
+            context["robot_gender"] = config.VOICE_GENDERS.get(voice)
+    except b44.RateLimited:
+        raise
+    except b44.Base44Error as e:
+        _log(f"Session {session.get('session_code')}: gender lookup failed: {e}")
+        return {"participant_gender": None, "robot_gender": None}
+    _speech_context[session["id"]] = context
+    return context
+```
+
+- [ ] **Step 8: Run all tests and see them pass**
 
 Run: `pytest tests/ -q`
 Expected: all PASS.
 
-- [ ] **Step 7: Commit**
+- [ ] **Step 9: Commit**
 
 ```bash
-git add worker_common.py tests/fakes.py engine_worker.py llm_client.py tests/test_engine_worker.py tests/test_llm_client.py tests/test_model_registry.py
-git commit -m "Move heartbeat to its own thread; share worker helpers and test fakes"
+git add worker_common.py tests/fakes.py hebrew_gender.py config.py engine_worker.py llm_client.py tests/test_engine_worker.py tests/test_llm_client.py tests/test_model_registry.py tests/test_hebrew_gender.py
+git commit -m "Move heartbeat to its own thread; share worker helpers and test fakes; add Hebrew gender helpers"
 ```
 
 ---
@@ -1546,8 +1791,9 @@ git commit -m "Move heartbeat to its own thread; share worker helpers and test f
 
 **Interfaces:**
 - Consumes:
-  - `small_talk.generate_line(phase, position, total, expects_answer, history, language)` (Task 3)
-  - `acknowledgement.acknowledge(question, answer, language) -> {"line", "guardrail_flag", "guardrail_reason"}` (Task 4)
+  - `small_talk.generate_line(phase, position, total, expects_answer, history, language, participant_gender, robot_gender)` (Task 3)
+  - `acknowledgement.acknowledge(question, answer, language, participant_gender, robot_gender) -> {"line", "guardrail_flag", "guardrail_reason"}` (Task 4)
+  - `hebrew_gender.render(text, gender)` (Task 7). The `session` dict passed to `advance()` carries `participant_gender` / `robot_gender` (added by Task 10's `run_live_session`).
   - `furhat_client.say(text, language=None) -> {"sent", "reason"}`
   - `furhat_client.listen() -> {"status": "ok" | "no_speech" | "failed", "text"}`
   - `furhat_client.health_check() -> bool`
@@ -1585,9 +1831,9 @@ def fake(monkeypatch):
     monkeypatch.setattr(flow, "b44", store)
     monkeypatch.setattr(flow, "_robot_wait_started", {})
     monkeypatch.setattr(flow.small_talk, "generate_line",
-                        lambda phase, position, total, expects_answer, history, language="he":
+                        lambda phase, position, total, expects_answer, history, language="he", *genders:
                         f"{phase} {position}/{total}")
-    monkeypatch.setattr(flow.acknowledgement, "acknowledge", lambda q, a, language="he": dict(ACK))
+    monkeypatch.setattr(flow.acknowledgement, "acknowledge", lambda q, a, language="he", *genders: dict(ACK))
     return store
 
 
@@ -1662,6 +1908,18 @@ def test_main_turn_says_question_then_content_only_ack(fake, monkeypatch):
     assert saved["robot_line"] == ACK["line"]
     assert saved["guardrail_flag"] is False
     assert saved["engine_model"]
+
+
+def test_question_slash_forms_follow_participant_gender(fake, monkeypatch):
+    s = fake.add("Session", status="Running", mode="Live", language="he", participant_gender="female")
+    t = fake.add("Turn", session=s["id"], order=1, phase="Main", category="Skills",
+                 question_text="ספר/י על עצמך", status="queued")
+    robot = use_robot(monkeypatch, FakeRobot())
+
+    run(fake, s, t)
+
+    assert robot.said() == ["ספרי על עצמך", "ספרי על עצמך"]  # asked, then repeated after silence
+    assert fake.get("Turn", t["id"])["question_text"] == "ספר/י על עצמך"  # the website keeps the bank text
 
 
 def test_awaiting_answer_is_treated_as_queued(fake, monkeypatch):
@@ -1811,7 +2069,7 @@ def test_small_talk_gets_position_and_history(fake, monkeypatch):
                  expects_answer=True, status="queued", question_text="")
     seen = {}
     monkeypatch.setattr(flow.small_talk, "generate_line",
-                        lambda phase, position, total, expects_answer, history, language="he":
+                        lambda phase, position, total, expects_answer, history, language="he", *genders:
                         seen.update(args=(phase, position, total, expects_answer), history=history) or "נחמד")
     use_robot(monkeypatch, FakeRobot(heard=[heard("כן")]))
 
@@ -1872,6 +2130,7 @@ import acknowledgement
 import base44_client as b44
 import config
 import furhat_client
+import hebrew_gender
 import llm_client
 import small_talk
 from worker_common import WORKER_ID, log, now
@@ -1946,6 +2205,13 @@ def _skip(turn: dict, reason: str) -> dict:
     return _update(turn, status="skipped", skipped=True, skip_reason=reason)
 
 
+def _question_to_say(turn: dict, session: dict) -> str:
+    """Question-bank text has slash forms ("ספר/י"); say the participant's form (plan decision P2).
+    Generated small-talk lines are already in the right form."""
+    text = turn.get("question_text", "")
+    return text if turn.get("generated_by_engine") else hebrew_gender.render(text, session.get("participant_gender"))
+
+
 def _position(turn: dict, turns: list) -> tuple:
     same_phase = [t for t in sorted(turns, key=_order) if t.get("phase") == turn.get("phase")]
     ids = [t["id"] for t in same_phase]
@@ -2010,9 +2276,10 @@ def _speak(turn, session, turns, propose):
     if turn.get("generated_by_engine") and not turn.get("question_text"):
         position, total = _position(turn, turns)
         line = small_talk.generate_line(turn.get("phase"), position, total, turn.get("expects_answer") is not False,
-                                        dialogue_history(turns, turn), session.get("language", "he"))
+                                        dialogue_history(turns, turn), session.get("language", "he"),
+                                        session.get("participant_gender"), session.get("robot_gender"))
         turn = _update(turn, question_text=line, engine_model=llm_client.current_model())
-    _say(turn["question_text"], session)
+    _say(_question_to_say(turn, session), session)
     if turn.get("expects_answer") is False:
         return _update(turn, status="done", done_at=now())
     return _update(turn, status="listening")
@@ -2020,7 +2287,7 @@ def _speak(turn, session, turns, propose):
 
 def _listen_answer(turn, session, turns, propose):
     """listening: the participant's answer."""
-    text, skip_reason = _listen_for(turn.get("question_text", ""), session)
+    text, skip_reason = _listen_for(_question_to_say(turn, session), session)
     if skip_reason:
         return _skip(turn, skip_reason)
     return _update(turn, participant_answer=text, answer_submitted_at=now(), status="engine_processing")
@@ -2031,7 +2298,8 @@ def _process(turn, session, turns, propose):
     if turn.get("generated_by_engine"):
         return _update(turn, status="done", done_at=now())
     ack = acknowledgement.acknowledge(turn.get("question_text", ""), turn["participant_answer"],
-                                      session.get("language", "he"))
+                                      session.get("language", "he"), session.get("participant_gender"),
+                                      session.get("robot_gender"))
     return _update(turn, robot_line=ack["line"], guardrail_flag=ack["guardrail_flag"],
                    guardrail_reason=ack["guardrail_reason"], engine_model=llm_client.current_model(),
                    status="robot_speaking")
@@ -2070,7 +2338,7 @@ git commit -m "Add Live turn state machine for small talk and non-PBDI questions
 - Consumes:
   - `propose(question, answer, mode) -> dict` (= `engine_worker.build_proposal`; may raise)
   - `pe_check.grade_pe_answer(target, answer) -> {"result", "explanation"}` (Task 5; may raise)
-  - `pe_feedback.generate_feedback(target, reason, guess, result, language) -> str` (Task 6)
+  - `pe_feedback.generate_feedback(target, question, answer, guess, result, language, participant_gender, robot_gender) -> {"line", "reason"}` (Task 6)
   - `furhat_client.react(emotion, intensity, text=None, language=None) -> {"sent", "reason"}`
 - Produces: the full PBDI path:
   `engine_processing → awaiting_approval → [Approve] robot_reacting → pe_listening → engine_processing → awaiting_feedback → [Approve] robot_feedback → done`.
@@ -2145,7 +2413,8 @@ def test_approved_reaction_then_pe_question_then_grade(fake, monkeypatch):
     monkeypatch.setattr(flow.pe_check, "grade_pe_answer",
                         lambda target, answer: {"result": "Partial", "explanation": "קרוב"})
     monkeypatch.setattr(flow.pe_feedback, "generate_feedback",
-                        lambda target, reason, guess, result, language="he": f"{target}/{reason}/{guess}/{result}")
+                        lambda target, question, answer, guess, result, language="he", *genders:
+                        {"line": f"{target}/{answer}/{guess}/{result}", "reason": "סיפרת שהצלחת"})
 
     assert run(fake, s, t) is False
 
@@ -2155,7 +2424,8 @@ def test_approved_reaction_then_pe_question_then_grade(fake, monkeypatch):
     assert saved["robot_line"] == "איזה יופי!"
     assert saved["participant_pe_answer"] == "התלהבת"
     assert saved["pe_result"] == "Partial" and saved["pe_explanation"] == "קרוב"
-    assert saved["proposed_feedback"] == "HAPPINESS/הצלחתי בפרויקט/התלהבת/Partial"
+    assert saved["proposed_feedback"] == "HAPPINESS/תשובה/התלהבת/Partial"
+    assert saved["pe_answer_why"] == "סיפרת שהצלחת"
     [cmd] = fake.list_records("RobotCommand", {"turn": t["id"]})
     assert cmd["status"] == "done" and cmd["emotion"] == "HAPPINESS" and cmd["text"] == "איזה יופי!"
 
@@ -2257,7 +2527,8 @@ def _process(turn, session, turns, propose):
     if turn.get("category") == PBDI_CATEGORY:
         return _propose(turn, session, propose)
     ack = acknowledgement.acknowledge(turn.get("question_text", ""), turn["participant_answer"],
-                                      session.get("language", "he"))
+                                      session.get("language", "he"), session.get("participant_gender"),
+                                      session.get("robot_gender"))
     return _update(turn, robot_line=ack["line"], guardrail_flag=ack["guardrail_flag"],
                    guardrail_reason=ack["guardrail_reason"], engine_model=llm_client.current_model(),
                    status="robot_speaking")
@@ -2310,12 +2581,14 @@ def _grade_pe(turn, session):
             lambda: pe_check.grade_pe_answer(turn.get("target_emotion", ""), turn["participant_pe_answer"]))
     except Exception as e:
         return _fail(turn, e)
-    line = pe_feedback.generate_feedback(turn.get("target_emotion", ""), turn.get("pe_answer_why", ""),
-                                         turn["participant_pe_answer"], graded["result"],
-                                         session.get("language", "he"))
+    feedback = pe_feedback.generate_feedback(turn.get("target_emotion", ""), turn.get("question_text", ""),
+                                             turn.get("participant_answer", ""), turn["participant_pe_answer"],
+                                             graded["result"], session.get("language", "he"),
+                                             session.get("participant_gender"), session.get("robot_gender"))
     log(f"Turn {turn.get('order')}: PE {graded['result']}")
     return _update(turn, pe_result=graded["result"], pe_explanation=graded["explanation"],
-                   proposed_feedback=line, engine_model=llm_client.current_model(),
+                   proposed_feedback=feedback["line"], pe_answer_why=feedback["reason"],
+                   engine_model=llm_client.current_model(),
                    engine_responded_at=now(), status="awaiting_feedback")
 
 
@@ -2377,6 +2650,7 @@ def fake(monkeypatch):
     monkeypatch.setattr(engine_worker.conversation_flow, "b44", store)
     monkeypatch.setattr(engine_worker, "_robot_wait_started", {})
     monkeypatch.setattr(engine_worker.conversation_flow, "_robot_wait_started", {})
+    monkeypatch.setattr(engine_worker, "_speech_context", {})
     return store
 ```
 
@@ -2446,6 +2720,22 @@ def test_live_session_without_turns_waits_for_the_website(fake, monkeypatch):
     assert fake.list_records("Turn") == []
 
 
+def test_live_session_adds_speech_context(fake, monkeypatch):
+    participant = fake.add("Participant", gender="Female")
+    persona = fake.add("Persona", furhat_voice="AvriNeural")
+    session = fake.add("Session", status="Running", mode="Live", participant=participant["id"],
+                       persona=persona["id"])
+    fake.add("Turn", session=session["id"], order=1, status="queued")
+    seen = {}
+    monkeypatch.setattr(engine_worker.conversation_flow, "advance",
+                        lambda turn, s, turns, robot_connected, propose: seen.update(session=s) or False)
+
+    engine_worker.run_live_session(session, robot_connected=True)
+
+    assert seen["session"]["participant_gender"] == "female"
+    assert seen["session"]["robot_gender"] == "male"
+
+
 def test_live_session_passes_build_proposal(fake, monkeypatch):
     session = fake.add("Session", status="Running", mode="Live")
     fake.add("Turn", session=session["id"], order=1, status="queued")
@@ -2480,7 +2770,9 @@ Expected: FAIL. `run_live_session` is missing, Live turns are not run, and
 
 def run_live_session(session: dict, robot_connected: bool) -> None:
     """Advance the session's current turn. When it finishes, start the next one right away,
-    unless the researcher paused or ended the session meanwhile (plan decision P9)."""
+    unless the researcher paused or ended the session meanwhile (plan decision P9).
+    The flow reads the Hebrew genders from the session dict (plan decision P2)."""
+    session = {**session, **speech_context(session)}
     while True:
         turns = b44.list_records("Turn", {"session": session["id"]}, sort="order")
         turn = conversation_flow.current_turn(turns)
@@ -2601,8 +2893,10 @@ researcher before going on.
   "LLM models synced", and the website shows the Engine as available (the
   heartbeat thread is running).
 
-- [ ] **Step 3: Small talk.** On the website, create a **Short** Live session
-  with a Persona (for example Isabel + AvriNeural) and start it. Expected:
+- [ ] **Step 3: Small talk.** On the website, set your participant's Gender,
+  then create a **Short** Live session with a Persona (for example Isabel +
+  AvriNeural) and start it. Expected (also: the robot addresses you in the
+  right gender, and questions with "/" are read as one form):
   - The face and voice change.
   - The robot greets you and asks an easy question.
   - Your answer appears on the website as "What the participant said".
