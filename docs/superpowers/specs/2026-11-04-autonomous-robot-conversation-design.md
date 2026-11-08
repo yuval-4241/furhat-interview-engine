@@ -225,6 +225,44 @@ The methodology-locked prompts (`EVALUATOR_SYSTEM_PROMPT_A`/`_B`, `PERSONAS`,
 5. `pe_check` Correct/Partial/Wrong and the PE feedback, after the
    researcher approves the Hebrew word lists.
 
+## Feasibility results (2026-11-08)
+
+Run by the researcher on the Furhat virtual SDK (launcher, `InterviewSkill`).
+
+- **Gate: passed.** Plan 2 goes ahead as specced (approach 1, Furhat ASR).
+- **Hebrew ASR accuracy: good.** Names (שחר, אלכס), numbers ("3 מתח") and
+  domain terms ("הנדסה תעשייה וניהול") came through. One misheard word at
+  the start of the first probe.
+- **Per-utterance cap: none observed.** A ~40 s answer came back whole in
+  one `/listen` call, so no listen chaining is needed.
+- **No speech:** returns `{"status": "no_speech"}` after the 10 s timeout.
+- **Persona:** `{"character": "Isabel", "voice": "AvriNeural"}` changed both
+  face and voice.
+- **Known issues found during the run:**
+  - Recognized text sometimes glues two words together without a space
+    ("אחותאחת", "אתהשניה"), apparently at ASR segment joins. Low impact on
+    content evaluation; revisit in Plan 2.
+  - A bad face or voice name does not return an error. The robot logs a
+    warning and keeps the old face/voice, because the face change is
+    fire-and-forget. Handled by closed dropdowns on the website (option A);
+    server-side validation is a Plan 2 candidate.
+  - "Asaf" is not a Furhat voice. Available Hebrew voices: `AvriNeural`
+    (male), `HilaNeural` (female), `Hila:DragonLatestNeural` (female,
+    untested). Faces (mask `adult`): Alex, Brooklyn, Chen, Dorothy,
+    Expresivo, Fedora, Fernando, Gyeong, Hayden, Isabel, James, Jamie, Jane,
+    Kione, Lamin, Marty, Maurice, Nazar, Omar, Patricia, Rania, Samuel,
+    Titan, Vinnie, Yi, Yumi, Zhen, default.
+  - Lipsync server (`ws://127.0.0.1:9001`) was unreachable; speech still
+    played.
+  - Rebuilding the `.skill` while it runs crashes the JVM (`SIGBUS` in
+    `libzip`). Stop the skill in the launcher before rebuilding.
+- **Skill fixes made during the run** (`interview-skill`):
+  `requiresSpeaker/Microphone/Recognizer = false` (the startup check timed
+  out on the SDK), `setInputLanguage(HEBREW)` on entry (the recognizer had
+  defaulted to English), and reset to the `default` face on entry.
+- **Not confirmed explicitly:** whether a 2 s mid-answer pause was included
+  in the first probe.
+
 ## Out of scope
 
 - PE confidence rating (future idea above).
