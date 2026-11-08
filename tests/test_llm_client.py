@@ -69,3 +69,26 @@ def test_current_model_follows_override():
     with llm_client.model_override("llama3.1-8b"):
         assert llm_client.current_model() == "llama3.1-8b"
     assert llm_client.current_model() == config.MODEL_DEFAULT
+
+
+def test_clients_get_timeout_and_retry_limits(monkeypatch):
+    built = []
+
+    def fake_openai(**kwargs):
+        built.append(kwargs)
+        return object()
+
+    monkeypatch.setattr(llm_client, "OpenAI", fake_openai)
+    monkeypatch.setattr(llm_client, "_client", None)
+    monkeypatch.setattr(llm_client, "_clients", {})
+    monkeypatch.setattr(llm_client.config, "LLM_PROVIDER", "lab")
+    monkeypatch.setattr(llm_client.config, "LAB_LLM_TOKEN", "t")
+    monkeypatch.setenv("OPENAI_API_KEY", "k")
+
+    llm_client.get_client()
+    llm_client._client_for("openai")
+
+    assert len(built) == 2
+    for kwargs in built:
+        assert kwargs["timeout"] == config.LLM_TIMEOUT_SECONDS == 60
+        assert kwargs["max_retries"] == config.LLM_MAX_RETRIES == 1

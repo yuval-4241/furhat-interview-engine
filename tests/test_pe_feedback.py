@@ -38,4 +38,29 @@ def test_feedback_falls_back_to_naming_the_emotion(monkeypatch):
 
 def test_flagged_feedback_falls_back(monkeypatch):
     _fake_json(monkeypatch, {"line": "הרגשתי שמחה כי נשמעת בטוחה.", "reason": "נשמעת בטוחה"})
-    assert pe_feedback.generate_feedback("HAPPINESS", "Q", "A", "שמחת", "Correct")["line"] == "בעצם הרגשתי שמחה."
+    assert pe_feedback.generate_feedback("HAPPINESS", "Q", "A", "שמחת", "Correct")["line"] == "נכון, הרגשתי שמחה."
+
+
+def test_fallback_wording_follows_the_grade(monkeypatch):
+    _fake_json(monkeypatch, None)
+    line = lambda grade, lang="he": pe_feedback.generate_feedback("SADNESS", "Q", "A", "g", grade, lang)["line"]
+    assert line("Correct") == "נכון, הרגשתי עצב."
+    assert line("Partial") == "קרוב, הרגשתי עצב."
+    assert line("Wrong") == "בעצם הרגשתי עצב."
+    assert line("???") == "בעצם הרגשתי עצב."  # unknown grade: the Wrong wording
+    assert line("Correct", "en") == "That's right, I felt sadness."
+    assert line("Partial", "en") == "Close, I actually felt sadness."
+
+
+def test_feedback_asks_for_enough_tokens_and_bans_praise(monkeypatch):
+    seen = {}
+
+    def fake(system, user_message, required=("line",), **kwargs):
+        seen.update(kwargs, system=system)
+        return None
+
+    monkeypatch.setattr(pe_feedback.llm_line, "request_json", fake)
+    pe_feedback.generate_feedback("FEAR", "Q", "A", "g", "Correct")
+
+    assert seen["max_tokens"] == 400
+    assert "כל הכבוד" in seen["system"]

@@ -31,7 +31,8 @@ def get_client() -> OpenAI:
                 raise RuntimeError(
                     "OPENAI_API_KEY not set. Add it to .env (see .env.example)."
                 )
-            _client = OpenAI(api_key=config.OPENAI_API_KEY)
+            _client = OpenAI(api_key=config.OPENAI_API_KEY,
+                         timeout=config.LLM_TIMEOUT_SECONDS, max_retries=config.LLM_MAX_RETRIES)
         else:
             if not config.LAB_LLM_TOKEN:
                 raise RuntimeError(
@@ -41,6 +42,8 @@ def get_client() -> OpenAI:
             _client = OpenAI(
                 base_url=config.LAB_LLM_BASE_URL,
                 api_key=config.LAB_LLM_TOKEN,
+                timeout=config.LLM_TIMEOUT_SECONDS,
+                max_retries=config.LLM_MAX_RETRIES,
             )
     return _client
 
@@ -57,7 +60,8 @@ def _client_for(provider: str) -> OpenAI:
             raise RuntimeError(
                 f"{p['api_key_env']} not set. Add it to .env (see .env.example)."
             )
-        kwargs = {"api_key": key}
+        kwargs = {"api_key": key, "timeout": config.LLM_TIMEOUT_SECONDS,
+                  "max_retries": config.LLM_MAX_RETRIES}
         if p["base_url"]:
             kwargs["base_url"] = p["base_url"]
         _clients[provider] = OpenAI(**kwargs)

@@ -6,7 +6,8 @@ hebrew_gender.py -- resolves the question bank's slash forms ("ספר/י",
 Rule-based: in "<base>/<alt>", an alt in _SUFFIXES is a feminine suffix
 (base + suffix; a base ending in ה drops it before a י suffix: תעשה/י ->
 תעשי; a final letter turns regular: מוכן/ה -> מוכנה). Any other alt is a
-whole alternative word (אתה/את). "ו/או" (and/or) is left alone.
+whole alternative word (אתה/את). The feminine-first "את/ה" is special-cased:
+male "אתה", female "את". "ו/או" (and/or) is left alone.
 Unknown gender -> the first form, as written.
 """
 
@@ -30,6 +31,8 @@ def render(text: str, gender=None) -> str:
         base, alt = match.group(1), match.group(2)
         if alt == "או":
             return match.group(0)
+        if (base, alt) == ("את", "ה"):  # feminine-first: the suffix rule would invert it
+            return "את" if gender == "female" else "אתה"
         return _feminine(base, alt) if gender == "female" else base
 
     return _SLASH_FORM.sub(pick, text)

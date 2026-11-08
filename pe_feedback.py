@@ -27,8 +27,9 @@ def generate_feedback(target_emotion: str, question: str, answer: str, guess: st
             f"TARGET: {target_emotion} ({hebrew})\n"
             f"GUESS: {guess}\n"
             f"GRADE: {result}")
-    out = llm_line.request_json(system, user, required=("line", "reason"))
+    out = llm_line.request_json(system, user, required=("line", "reason"), max_tokens=400)
     if out and guardrail.check_rationale(f"{out['line']} {out['reason']}").passed:
         return {"line": out["line"], "reason": out["reason"]}
     name = hebrew if lang == "he" else target_emotion.lower()
-    return {"line": FALLBACK_TEMPLATES[lang].format(name=name), "reason": ""}
+    template = FALLBACK_TEMPLATES[lang].get(result, FALLBACK_TEMPLATES[lang]["Wrong"])
+    return {"line": template.format(name=name), "reason": ""}

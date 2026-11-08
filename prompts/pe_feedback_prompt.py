@@ -15,9 +15,14 @@ You get: the interview QUESTION, the candidate's ANSWER, the emotion you actuall
    - Correct: confirm warmly, name the emotion, and give the reason.
    - Partial: say they were close, name the emotion you actually felt, and give the reason.
    - Wrong: kindly say what you actually felt, and give the reason.
-   Do not grade their interview answer. No emoji.
+   Do not grade their interview answer. Never use praise phrases such as "כל הכבוד", "תשובה טובה", "תשובה מעולה" ("well done", "good answer"). No emoji.
 {gender_rule}
 
 Respond with ONLY a JSON object: {{"reason": "<the reason>", "line": "<the robot's line>"}}"""
 
-FALLBACK_TEMPLATES = {"he": "בעצם הרגשתי {name}.", "en": "I actually felt {name}."}
+# per language and grade; an unknown grade uses the "Wrong" wording
+FALLBACK_TEMPLATES = {
+    "he": {"Correct": "נכון, הרגשתי {name}.", "Partial": "קרוב, הרגשתי {name}.", "Wrong": "בעצם הרגשתי {name}."},
+    "en": {"Correct": "That's right, I felt {name}.", "Partial": "Close, I actually felt {name}.",
+           "Wrong": "I actually felt {name}."},
+}

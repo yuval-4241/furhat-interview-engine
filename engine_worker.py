@@ -38,6 +38,7 @@ _response_bank = ResponseBank()
 _robot_wait_started = {}
 
 _personas_applied = set()  # session ids whose face/voice were already sent to the robot
+_robot_was_connected = False  # last poll's robot state: a restarted skill has lost the persona
 
 
 def _app_level(level: str) -> str:
@@ -71,6 +72,8 @@ def heartbeat_once() -> None:
         send_heartbeat(furhat_client.health_check())
     except b44.Base44Error as e:  # RateLimited too: the next beat is WORKER_HEARTBEAT_EVERY away anyway
         _log(f"Heartbeat failed: {e}")
+    except Exception as e:  # the heartbeat thread must never die silently
+        _log(f"Heartbeat failed: {type(e).__name__}: {e}")
 
 
 def start_heartbeat_thread() -> threading.Thread:
@@ -296,7 +299,13 @@ def run_live_session(session: dict, robot_connected: bool) -> None:
 
 def poll_once(robot_connected: bool) -> bool:
     """One pass over all Running sessions. Returns True if any session is Running."""
+    global _robot_was_connected
     sessions = {s["id"]: s for s in b44.list_records("Session", {"status": "Running"})}
+
+    if robot_connected and not _robot_was_connected and _personas_applied:
+        _log("Robot is back: re-applying session personas")
+        _personas_applied.clear()
+    _robot_was_connected = robot_connected
 
     # Persona before any command, so a restarted worker re-applies it before speaking.
     for session in sessions.values():
@@ -338,6 +347,8 @@ def poll_once(robot_connected: bool) -> bool:
                 raise
             except b44.Base44Error as e:
                 _log(f"Session {session.get('session_code')}: Base44 error: {e}")
+            except Exception as e:  # one broken session must not stop the others or the worker
+                _log(f"Session {session.get('session_code')}: {type(e).__name__}: {e}")
     return bool(sessions)
 
 

@@ -11,6 +11,8 @@ def fake(monkeypatch):
     monkeypatch.setattr(engine_worker.conversation_flow, "b44", store)
     monkeypatch.setattr(engine_worker, "_robot_wait_started", {})
     monkeypatch.setattr(engine_worker.conversation_flow, "_robot_wait_started", {})
+    monkeypatch.setattr(engine_worker.conversation_flow, "_heard", {})
+    monkeypatch.setattr(engine_worker, "_robot_was_connected", False)
     monkeypatch.setattr(engine_worker, "_speech_context", {})
     return store
 
@@ -380,3 +382,47 @@ def test_live_session_passes_build_proposal(fake, monkeypatch):
     engine_worker.run_live_session(session, robot_connected=True)
 
     assert seen["propose"] is engine_worker.build_proposal
+
+
+def test_heartbeat_once_survives_any_exception(fake, monkeypatch):
+    def boom():
+        raise ValueError("bridge returned junk")
+
+    monkeypatch.setattr(engine_worker.furhat_client, "health_check", boom)
+
+    engine_worker.heartbeat_once()  # must not raise: the heartbeat thread would die
+
+
+def test_persona_is_resent_after_the_robot_goes_down_and_up(fake, monkeypatch):
+    persona = fake.add("Persona", furhat_face="Isabel", furhat_voice="Asaf")
+    fake.add("Session", status="Running", mode="Live", language="he", persona=persona["id"])
+    calls = []
+    monkeypatch.setattr(engine_worker, "_personas_applied", set())
+    monkeypatch.setattr(engine_worker.furhat_client, "set_persona",
+                        lambda *a: calls.append(a) or {"sent": True, "reason": None})
+    monkeypatch.setattr(engine_worker, "run_live_session", lambda *a: None)
+
+    engine_worker.poll_once(True)
+    engine_worker.poll_once(True)
+    assert len(calls) == 1
+    engine_worker.poll_once(False)
+    engine_worker.poll_once(True)
+
+    assert len(calls) == 2
+
+
+def test_unexpected_error_in_one_session_does_not_stop_the_others(fake, monkeypatch):
+    bad = fake.add("Session", status="Running", mode="Live", session_code="BAD")
+    good = fake.add("Session", status="Running", mode="Live", session_code="GOOD")
+    monkeypatch.setattr(engine_worker, "_personas_applied", {bad["id"], good["id"]})
+    seen = []
+
+    def run_live(session, robot_connected):
+        seen.append(session["session_code"])
+        if session["session_code"] == "BAD":
+            raise KeyError("boom")
+
+    monkeypatch.setattr(engine_worker, "run_live_session", run_live)
+
+    assert engine_worker.poll_once(True) is True  # must not raise
+    assert seen == ["BAD", "GOOD"]

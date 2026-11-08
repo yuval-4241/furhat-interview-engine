@@ -38,6 +38,7 @@ WAITING_FOR_RESEARCHER = ("awaiting_approval", "awaiting_feedback")
 HISTORY_TURNS = 10  # spec: the small-talk prompt sees the last 10 turns
 
 _robot_wait_started = {}  # turn id -> monotonic time the robot was first seen down
+_heard = {}  # (turn id, "answer" | "pe") -> text heard but not yet saved: a failed save must not lose it
 
 
 class RobotDown(Exception):
@@ -68,7 +69,10 @@ def advance(turn: dict, session: dict, turns: list, robot_connected: bool, propo
         while turn and not turn.get("engine_error") and turn.get("status") not in FINISHED + WAITING_FOR_RESEARCHER:
             handler = _HANDLERS.get(turn.get("status"))
             if handler is None:
-                return False  # not a Live status (e.g. left over from Simulation)
+                status = turn.get("status")
+                log(f"Turn {turn.get('order')}: unexpected status {status}")
+                _update(turn, engine_error=f"unexpected status: {status}")
+                return False
             turn = handler(turn, session, turns, propose)
     except RobotDown:
         _update(turn, engine_error="robot disconnected")
@@ -183,10 +187,18 @@ def _speak(turn, session, turns, propose):
 
 def _listen_answer(turn, session, turns, propose):
     """listening: the participant's answer."""
-    text, skip_reason = _listen_for(_question_to_say(turn, session), session)
+    key = (turn["id"], "answer")
+    if key in _heard:  # a retry after a failed save: don't ask the participant again
+        text, skip_reason = _heard[key], None
+    else:
+        text, skip_reason = _listen_for(_question_to_say(turn, session), session)
     if skip_reason:
         return _skip(turn, skip_reason)
-    return _update(turn, participant_answer=text, answer_submitted_at=now(), status="engine_processing")
+    _heard[key] = text
+    log(f"Turn {turn.get('order')}: heard answer: {text}")
+    saved = _update(turn, participant_answer=text, answer_submitted_at=now(), status="engine_processing")
+    _heard.pop(key, None)
+    return saved
 
 
 def _with_one_retry(call):
@@ -234,7 +246,7 @@ def _propose(turn, session, propose):
 
 def _react(turn, session, turns, propose):
     """robot_reacting (set by the researcher's Approve): emotion + reply, then the fixed PE question."""
-    done = b44.list_records("RobotCommand", {"turn": turn["id"], "status": "done"}, limit=1)
+    done = b44.list_records("RobotCommand", {"turn": turn["id"], "type": "say_with_gesture", "status": "done"}, limit=1)
     if done:
         # Retry after a robot drop on the PE question: the reaction already played, never repeat it (P5).
         _say(PE_QUESTION, session)
@@ -259,10 +271,18 @@ def _react(turn, session, turns, propose):
 
 def _listen_pe(turn, session, turns, propose):
     """pe_listening: the participant's guess. Silence/bad ASR skips the turn (plan decision P6)."""
-    text, skip_reason = _listen_for(PE_QUESTION, session)
+    key = (turn["id"], "pe")
+    if key in _heard:
+        text, skip_reason = _heard[key], None
+    else:
+        text, skip_reason = _listen_for(PE_QUESTION, session)
     if skip_reason:
         return _skip(turn, f"pe_{skip_reason}")
-    return _update(turn, participant_pe_answer=text, pe_submitted_at=now(), status="engine_processing")
+    _heard[key] = text
+    log(f"Turn {turn.get('order')}: heard PE answer: {text}")
+    saved = _update(turn, participant_pe_answer=text, pe_submitted_at=now(), status="engine_processing")
+    _heard.pop(key, None)
+    return saved
 
 
 def _grade_pe(turn, session):

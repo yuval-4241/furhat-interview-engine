@@ -17,6 +17,10 @@ LAB_LLM_TOKEN = os.environ.get("LAB_LLM_TOKEN", "")
 OPENAI_API_KEY = os.environ.get("OPENAI_API_KEY", "")
 GOOGLE_SPEECH_API_KEY = os.environ.get("GOOGLE_SPEECH_API_KEY", "")
 
+# Live sessions must not hang on a stuck LLM call; 60 s keeps slow 20B evaluator calls working.
+LLM_TIMEOUT_SECONDS = 60
+LLM_MAX_RETRIES = 1
+
 # Model choice: start fast/cheap while building, move up once quality matters.
 # For Hebrew response generation later, consider dictalm3-12b / dictalm3-24b.
 if LLM_PROVIDER == "openai":

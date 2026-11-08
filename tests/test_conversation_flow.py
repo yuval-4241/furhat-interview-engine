@@ -13,6 +13,7 @@ def fake(monkeypatch):
     store = FakeBase44()
     monkeypatch.setattr(flow, "b44", store)
     monkeypatch.setattr(flow, "_robot_wait_started", {})
+    monkeypatch.setattr(flow, "_heard", {})
     monkeypatch.setattr(flow.small_talk, "generate_line",
                         lambda phase, position, total, expects_answer, history, language="he", *genders:
                         f"{phase} {position}/{total}")
@@ -454,3 +455,76 @@ def test_retry_after_pe_question_drop_does_not_repeat_reaction(fake, monkeypatch
     assert len(fake.list_records("RobotCommand", {"turn": t["id"]})) == 1
     saved = fake.get("Turn", t["id"])
     assert saved["status"] == "awaiting_feedback" and saved["robot_line"] == "איזה יופי!"
+
+
+def test_done_say_command_does_not_suppress_the_reaction(fake, monkeypatch):
+    s = live_session(fake)
+    t = pbdi_turn(fake, s, status="robot_reacting", participant_answer="תשובה", final_reply="איזה יופי!",
+                  target_emotion="HAPPINESS", intensity=2)
+    fake.add("RobotCommand", session=s["id"], turn=t["id"], type="say", text="קריאה", status="done")
+    robot = use_robot(monkeypatch, FakeRobot(heard=[heard("שמחת")]))
+    monkeypatch.setattr(flow.pe_check, "grade_pe_answer",
+                        lambda target, answer: {"result": "Correct", "explanation": "נכון"})
+    monkeypatch.setattr(flow.pe_feedback, "generate_feedback",
+                        lambda *a: {"line": "כן", "reason": "כי"})
+
+    run(fake, s, t)
+
+    assert robot.calls[0] == ("react", "HAPPINESS", 2, "איזה יופי!")
+
+
+def _fail_next_update(monkeypatch, store, field):
+    """update_record raises Base44Error once for a write that sets `field`."""
+    real = store.update_record
+    state = {"failed": False}
+
+    def flaky(entity, record_id, fields):
+        if field in fields and not state["failed"]:
+            state["failed"] = True
+            raise store.Base44Error("boom")
+        return real(entity, record_id, fields)
+
+    monkeypatch.setattr(store, "update_record", flaky)
+
+
+def test_answer_survives_a_failed_save_and_is_not_asked_again(fake, monkeypatch):
+    s = live_session(fake)
+    t = fake.add("Turn", session=s["id"], order=1, phase="Opening", generated_by_engine=True,
+                 expects_answer=True, status="listening", question_text="שלום")
+    robot = use_robot(monkeypatch, FakeRobot(heard=[heard("אני דנה")]))
+    _fail_next_update(monkeypatch, fake, "participant_answer")
+
+    with pytest.raises(fake.Base44Error):
+        run(fake, s, t)
+    assert run(fake, s, t) is True
+
+    assert fake.get("Turn", t["id"])["participant_answer"] == "אני דנה"
+    assert robot.calls.count(("listen",)) == 1
+    assert flow._heard == {}
+
+
+def test_pe_answer_survives_a_failed_save_and_is_not_asked_again(fake, monkeypatch):
+    s = live_session(fake)
+    t = pbdi_turn(fake, s, status="pe_listening", participant_answer="תשובה", target_emotion="FEAR")
+    robot = use_robot(monkeypatch, FakeRobot(heard=[heard("פחדת")]))
+    monkeypatch.setattr(flow.pe_check, "grade_pe_answer",
+                        lambda target, answer: {"result": "Correct", "explanation": "נכון"})
+    monkeypatch.setattr(flow.pe_feedback, "generate_feedback", lambda *a: {"line": "כן", "reason": "כי"})
+    _fail_next_update(monkeypatch, fake, "participant_pe_answer")
+
+    with pytest.raises(fake.Base44Error):
+        run(fake, s, t)
+    run(fake, s, t)
+
+    assert fake.get("Turn", t["id"])["participant_pe_answer"] == "פחדת"
+    assert robot.calls.count(("listen",)) == 1
+
+
+def test_unexpected_status_sets_engine_error(fake, monkeypatch):
+    s = live_session(fake)
+    t = fake.add("Turn", session=s["id"], order=1, status="awaiting_pe", question_text="Q")
+    use_robot(monkeypatch, FakeRobot())
+
+    assert run(fake, s, t) is False
+
+    assert fake.get("Turn", t["id"])["engine_error"] == "unexpected status: awaiting_pe"

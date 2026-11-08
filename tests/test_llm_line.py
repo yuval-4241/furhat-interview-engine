@@ -49,3 +49,9 @@ def test_gender_rule():
     assert "masculine form" in llm_line.gender_rule("he", "male")
     assert "unknown" in llm_line.gender_rule("he", None)
     assert "speaks about itself, use the feminine form" in llm_line.gender_rule("he", "male", "female")
+
+
+def test_request_json_treats_null_as_missing(monkeypatch):
+    calls = _fake_llm(monkeypatch, ['{"line": "x", "reason": null}', '{"line": "x", "reason": "y"}'])
+    assert llm_line.request_json("sys", "user", required=("line", "reason")) == {"line": "x", "reason": "y"}
+    assert len(calls) == 2
