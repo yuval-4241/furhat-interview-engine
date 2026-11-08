@@ -1,3 +1,6 @@
+import pytest
+
+import guardrail
 from guardrail import GuardrailResult, check_rationale
 
 
@@ -34,3 +37,23 @@ def test_style_leakage_score_always_derived_even_when_constructed_directly():
     it's always recomputed, so the two can never drift out of sync."""
     result = GuardrailResult(passed=False, matched_patterns=["eye contact", "monotone"])
     assert result.style_leakage_score == 2
+
+
+@pytest.mark.parametrize("line", [
+    "תודה. שמתי לב שלא היה קשר עין.",
+    "נשמעת לחוצה, אבל נמשיך.",
+    "תשובה מצוינת! נמשיך.",
+    "כדאי לשים לב למבנה התשובה.",
+    "התשובה הייתה ארוכה מדי.",
+])
+def test_hebrew_delivery_and_praise_lines_are_flagged(line):
+    assert guardrail.check_rationale(line).passed is False
+
+
+@pytest.mark.parametrize("line", [
+    "תודה, אז היית לחוץ בעבודה הקודמת ולמדת לתעדף משימות. נמשיך.",
+    "תודה, אז עבדת שלוש שנים בשירות לקוחות. נמשיך.",
+    "בעצם הרגשתי שמחה, כי סיפרת שהצלחת בפרויקט.",
+])
+def test_hebrew_content_lines_pass(line):
+    assert guardrail.check_rationale(line).passed is True

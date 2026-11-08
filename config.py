@@ -97,6 +97,27 @@ NO_MASKING_FLAG_PATTERNS = [
     "sounded robotic",
     "seemed nervous",
     "fidget",
+    # Hebrew equivalents, approved by the researcher on 2026-11-08 (Plan 2,
+    # decision P3). Whole phrases, because matching is literal-substring:
+    # a robot line that repeats the participant's own content ("היית לחוץ
+    # בעבודה") must not be flagged. Both gender forms where they differ.
+    "קשר עין",
+    "שפת גוף",
+    "טון הדיבור",
+    "מונוטוני",
+    "נשמעת לחוץ", "נשמעת לחוצה",
+    "נראית לחוץ", "נראית לחוצה",
+    "נשמעת בטוח", "נשמעת בטוחה",
+    "חוסר התלהבות",
+    "ישיר מדי", "ישירה מדי",
+    "בוטה מדי",
+    "מבנה התשובה",
+    "לא בפורמט STAR",
+    "ארוכה מדי", "קצרה מדי",
+    "לא הרחבת מספיק",
+    "נשמעת רובוטי",
+    "גמגום",
+    "תשובה מצוינת", "תשובה טובה", "תשובה מעולה", "כל הכבוד",
 ]
 
 # ── File locations ──────────────────────────────────────────────────────────
