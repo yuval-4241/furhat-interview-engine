@@ -66,7 +66,7 @@ if run_clicked:
     col2.metric("Valence", ev["valence"])
     col3.metric("Arousal", ev["arousal"])
     st.write(f"**Confidence:** {ev['confidence']:.2f}")
-    st.write(f"**Rationale:** {ev['rationale']}")
+    st.write(f"**Answer Quality Reasoning:** {ev['rationale']}")
     if state.get("schema_invalid"):
         st.error("Schema validation failed twice — routing straight to review queue.")
 
@@ -107,7 +107,7 @@ if run_clicked:
             derived_valence = emotion_classifier.derive_valence(reaction["emotion"])
             derived_arousal = emotion_classifier.derive_arousal(reaction["intensity"])
             st.write(
-                f"**Robot's facial reaction:** {reaction['emotion']} "
+                f"**Emotion Decision:** {reaction['emotion']} "
                 f"(intensity {reaction['intensity']}/3) → derived valence/arousal: "
                 f"{derived_valence}/{derived_arousal}, always computed, sent or not."
             )
