@@ -1,0 +1,28 @@
+{
+  "n": 20,
+  "session": 5,
+  "persona_a": "literal_concrete_low_affect",
+  "persona_b": "concise_confident",
+  "category": {
+    "chi2": 0.0,
+    "p": 1.0,
+    "dof": 0,
+    "significant": false,
+    "small_sample_warning": false
+  },
+  "valence": {
+    "chi2": 12.604166666666668,
+    "p": 0.0003848878012656875,
+    "dof": 1,
+    "significant": true,
+    "small_sample_warning": true
+  },
+  "arousal": {
+    "chi2": 0.0,
+    "p": 1.0,
+    "dof": 0,
+    "significant": false,
+    "small_sample_warning": false
+  },
+  "guardrail_flags": 0
+}
