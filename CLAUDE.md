@@ -25,14 +25,20 @@ unless it's explicitly turned on. See
 ## Stack
 
 - Python 3.10+
-- LLM access via an OpenAI-compatible client (`llm_client.py`) — either the
-  lab GPU server or OpenAI directly, switched by `LLM_PROVIDER`
+- LLM access via an OpenAI-compatible client (`llm_client.py`) — the lab GPU
+  server, OpenAI, or OpenRouter. Models are split by task (`.env`):
+  `LLM_JUDGMENT_MODEL` (evaluator, emotion classifier, PE check; today
+  `openai/gpt-5`) and `LLM_LINES_MODEL` (the robot's generated lines; today
+  `openai/gpt-oss-20b`). Empty -> the session's model, as before.
 - Orchestration: LangGraph (`graph.py`)
 - Data analysis: pandas + scipy (`ab_test.py`)
 - Demo: Streamlit (`demo_app.py`, `interaction_app.py`)
-- Experiment website: "Furhat Interview Lab" on Base44 (frontend + DB only),
-  reached through its REST API via `base44_client.py` (`requests`, not the
-  npm `@base44/sdk`)
+- Experiment website: "Furhat Interview Lab" (frontend + DB only). Since
+  2026-11-10 a Claude-built site on Supabase (`supabase_client.py`, PostgREST
+  over `requests`, signs in as the `engine` user); the old Base44 app is
+  still reachable via `base44_client.py`. `lab_db.py` picks one by
+  `LAB_BACKEND` in `.env` (`supabase` / `base44`). Contract: the website
+  repo's `ENGINE_INTEGRATION.md` and `migration/ENGINE_API.md`
 
 ## Commands
 
@@ -46,8 +52,14 @@ export LAB_LLM_TOKEN="your_token"        # or set LLM_PROVIDER=openai + OPENAI_A
 # (holds BASE44_APP_ID / BASE44_API_TOKEN among others)
 set -a; source .env; set +a
 
-# Read-only check that the Base44 website connection works
-python -c "import base44_client as b; print(b.list_records('EngineHeartbeat'))"
+# Run the Engine worker (shortcut: type `engine` — an alias in ~/.zshrc that
+# runs this in a subshell, so the .env keys don't stay in the terminal)
+(cd ~/Documents/GitHub/conversation_engine && source venv/bin/activate && set -a && source .env && set +a && python engine_worker.py)
+# To recreate the shortcut on a new machine, add to ~/.zshrc:
+# alias engine='(cd ~/Documents/GitHub/conversation_engine && source venv/bin/activate && set -a && source .env && set +a && python engine_worker.py)'
+
+# Read-only check that the website connection works (whichever LAB_BACKEND is set)
+python -c "import lab_db; print(lab_db.client.list_records('EngineHeartbeat'))"
 
 # Run one conversation through the full graph (prints final state as JSON)
 python graph.py
@@ -67,7 +79,7 @@ To add an LLM model: see the ▶▶ ADD NEW LLM MODELS HERE ◀◀ block in
 worker startup.
 
 ```bash
-# Run the automated test suite (249 passed, 5 skipped: schemas, guardrail, consistency,
+# Run the automated test suite (303 passed, 5 skipped: schemas, guardrail, consistency,
 # evaluator, graph routing, emotion classifier, robot-reaction bridge,
 # PE check, Base44 client, engine worker, model registry, Furhat client, ...)
 pytest tests/ -v
@@ -183,6 +195,23 @@ persona answer -> evaluator -> schema guard (retry once on failure)
   after an answer, and PE feedback (content-only reason). All go through
   `llm_line.py` (one shared LLM-line helper: call, clean, fall back to a
   fixed line). PE word lists and fallback lines await researcher review.
+- **`reaction_line.py`** — the sentence the robot says with its PBDI
+  reaction: one LLM line (role "lines") from the classified emotion and the
+  answer's content, in both speakers' grammatical gender. It never names
+  the emotion (that would give away the PE answer) and never grades the
+  answer; otherwise a fixed per-emotion fallback. Replaced the placeholder
+  `response_bank.py` lines as the spoken reply (2026-11-14); valence/arousal
+  are still derived and recorded.
+- **`listening_gestures.py`** + **`gesture_review_app.py`** — the robot's
+  listening gestures (nods, head tilt, brow raise, slight smile) are
+  generated offline by an LLM within an allowed range of "listening
+  muscles" (`ALLOWED_PARAMS`), validated, de-duplicated (NumPy distance),
+  and approved by the researcher on the robot (`streamlit run
+  gesture_review_app.py`, plays each via the skill's `/gesture`). Kept
+  gestures go to the skill's `src/main/resources/listening_gestures.json`;
+  rebuild the skill to use them (built-in fallback set otherwise). Offline
+  on purpose: content-driven listening gestures would be a hidden
+  evaluation (No-Masking).
 - **`pe_check.py`** — `grade_pe_answer(emotion, answer)` grades the
   participant's PE answer as Correct / Partial / Wrong with an explanation.
 - **`hebrew_gender.py`** — masculine/feminine Hebrew wording helpers, driven

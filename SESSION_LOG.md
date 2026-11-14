@@ -342,3 +342,84 @@ default which never reaches the last 2 personas)**
 **RESUME FROM HERE:** Task 11, the live check. Stop the skill, rebuild the
 `.skill` (`interview-skill/rebuild.sh`), load it, then run
 `python engine_worker.py` against a Live session with the robot.
+
+---
+
+## 2026-11-09 → 2026-11-13 — Physical robot, new website, OpenRouter
+
+**Done**
+- First runs on the physical Furhat (172.19.94.255): the skill on the Mac
+  connects to the robot's broker; the speaker works. Blocker: the persona
+  voices (AvriNeural/HilaNeural) don't exist on the robot ("Cannot find the
+  specified voice").
+- ElevenLabs path: `LiveSession.kt` sends `ELEVENLABS_API_KEY` (from `.env`)
+  to the robot with `ActionConfigElevenlabs` at startup. Edited, not yet
+  rebuilt or committed.
+- Personas: Daniel = face Jamie + AvriNeural, Noa = face roni-women (custom
+  face) + HilaNeural.
+- New website (Claude-built, Supabase): `supabase_client.py` (same functions
+  as `base44_client.py`, PostgREST via `requests`, token refresh, 401 retry,
+  compare-and-set `claim`), `lab_db.py` picks the backend by `LAB_BACKEND`.
+  On Supabase the Engine skips the LLMModel sync and Turn creation (the site
+  owns both). Verified read-only against the live site.
+- OpenRouter + models split by task: `LLM_JUDGMENT_MODEL=openai/gpt-5`,
+  `LLM_LINES_MODEL=openai/gpt-oss-20b`. `call_llm(role=...)`; reasoning
+  models get a thinking budget; GPT-5 gets no temperature. Real calls:
+  evaluator 5.8 s, emotion 3.2 s, PE check 3.1 s, a line 0.9 s.
+- `engine` shell alias runs the worker (documented in CLAUDE.md).
+- Test suite: 269 passed, 5 skipped.
+
+**Approved, not started (robot fix bundle)**
+1. `/say` and `/react` block until speech ends (the robot transcribed itself).
+2. No slash forms in generated lines; render them by gender.
+3. Fallback voice when the persona voice is missing.
+4. Return to neutral after each reaction.
+5. Listening nods at pauses (`backchannel`, `Persona.listening_behavior`).
+
+**RESUME FROM HERE:** rebuild the skill with the ElevenLabs change (stop the
+skill first), pick an ElevenLabs Hebrew voice and set it on the personas,
+then start the robot fix bundle. Run `ab_test.py` on GPT-5 before
+collecting data.
+
+## 2026-11-14 — Reactions, free small talk, listening behaviour, literature
+
+**Built (Engine)**
+- Emotion reactions: intensity 2-3 only (1 is raised to 2), and the
+  classifier is told which emotions this session already showed, to vary.
+- Reaction sentence: `reaction_line.py` writes it from the classified emotion
+  and the answer's content, in both speakers' gender; never names the emotion
+  (PE) or grades the answer. Replaced the placeholder response-bank lines
+  ("התשובה הזו קצת חסרה לי מידע חשוב" on every negative emotion).
+- Free small talk: after each small-talk answer the robot may ask up to 3
+  follow-ups (`SMALL_TALK_MAX_FOLLOW_UPS`); the conversation is saved in
+  `turns.small_talk_log` (jsonb, added on the website). Prompt aims to lower
+  stress and build confidence.
+- `LLM_LINES_MODEL=openai/gpt-5` (gpt-oss-20b broke Hebrew gender and words).
+- Listening gestures: generated offline by GPT-5 within allowed "listening
+  muscles", validated, de-duplicated, reviewed on the robot
+  (`gesture_review_app.py`). First review: 17 kept, 10 dropped, 13 left.
+- `/listen` takes `backchannel` (off for the PE answer); `/react` waits until
+  the reaction is over.
+
+**Built (interview-skill)**
+- Reaction: emotion held 2 s silently, sentence, then a complete
+  `NeutralReset` (4 missing params added). Verified on the robot.
+- Gaze aversion at sentence starts while speaking; listening gestures from
+  the approved JSON bank, at short pauses (`onInterimResponse`, 0.7 s) plus
+  one during long speech (12-15 s) - pause trigger compiled, not yet tested
+  on the robot.
+
+**Literature** (`docs/literature/literature_review.xlsx`): Expressive Furhat
+(HRI 2026), Xpress (arXiv 2025), Holistic LLM behaviour (HRI 2026), Fujii &
+Minato (Sci. Rep. 2026).
+
+**Open questions for the advisor (Mon 16.11)**: emotion in the voice
+(pitch/rate/volume, Azure voices only); slight smile and brow furrow while
+listening (No-Masking / PE risk).
+
+- Test suite: 309 passed, 5 skipped.
+
+**RESUME FROM HERE:** rebuild the skill (pause-triggered listening gestures)
+and test them live; finish reviewing the 13 listening gestures (Tue 17.11);
+Py-Feat check of the 33 expressions (Tue 17.11). Run `ab_test.py` on GPT-5
+before collecting data.
