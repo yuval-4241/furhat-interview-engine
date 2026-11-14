@@ -18,7 +18,7 @@ def _fake_valid_json():
 def test_retry_hint_appended_to_user_message_when_given(monkeypatch):
     captured = {}
 
-    def fake_call_llm(system, user_message, max_tokens=500, temperature=0.7, model=None):
+    def fake_call_llm(system, user_message, max_tokens=500, temperature=0.7, model=None, role=None):
         captured["user_message"] = user_message
         return _fake_valid_json()
 
@@ -36,7 +36,7 @@ def test_retry_hint_appended_to_user_message_when_given(monkeypatch):
 def test_no_retry_hint_by_default_leaves_message_unchanged(monkeypatch):
     captured = {}
 
-    def fake_call_llm(system, user_message, max_tokens=500, temperature=0.7, model=None):
+    def fake_call_llm(system, user_message, max_tokens=500, temperature=0.7, model=None, role=None):
         captured["user_message"] = user_message
         return _fake_valid_json()
 

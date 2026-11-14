@@ -1,3 +1,4 @@
+import config
 import json
 
 import requests
@@ -140,8 +141,16 @@ def test_listen_returns_bridge_result(monkeypatch):
 
     assert furhat_client.listen() == {"status": "ok", "text": "שלום"}
     assert seen["url"].endswith("/listen")
-    assert seen["body"] == {"timeout": 10000, "endSil": 3000, "maxSpeech": 120000}
+    assert seen["body"] == {"timeout": 10000, "endSil": 3000, "maxSpeech": 120000, "backchannel": True}
     assert seen["timeout"] > (10000 + 120000) / 1000  # HTTP wait covers the whole listen window
+
+
+def test_listen_can_turn_off_backchannel(monkeypatch):
+    seen = {}
+    monkeypatch.setattr(furhat_client.requests, "post",
+                        lambda url, data=None, **k: seen.update(body=json.loads(data)) or _Resp({"status": "ok", "text": ""}))
+    furhat_client.listen(backchannel=False)
+    assert seen["body"]["backchannel"] is False
 
 
 def test_listen_timeout_returns_failed(monkeypatch):
@@ -199,3 +208,32 @@ def test_listen_non_dict_json_returns_failed(monkeypatch):
     monkeypatch.setattr(furhat_client.requests, "post", lambda *a, **k: _Resp(None))
 
     assert furhat_client.listen() == {"status": "failed", "text": ""}
+
+
+def test_play_gesture_posts_the_gesture_json(monkeypatch):
+    seen = {}
+
+    def fake_post(url, data=None, headers=None, timeout=None):
+        seen.update(url=url, body=json.loads(data))
+        return _FakeResponse(200)
+
+    monkeypatch.setattr(furhat_client.requests, "post", fake_post)
+    g = {"name": "SmallNod", "frames": [{"time": [0.25], "params": {"NECK_TILT": 4.0}}], "reset": 0.6}
+    assert furhat_client.play_gesture(g) == {"sent": True, "reason": None}
+    assert seen["url"].endswith("/gesture") and seen["body"] == g
+
+
+def test_react_waits_long_enough_for_the_whole_reaction(monkeypatch):
+    """The bridge answers /react only after the hold, the sentence and the neutral reset."""
+    seen = {}
+
+    def fake_post(url, data=None, headers=None, timeout=None):
+        seen["timeout"] = timeout
+        return _FakeResponse(200)
+
+    monkeypatch.setattr(furhat_client.requests, "post", fake_post)
+    furhat_client.react("SADNESS", 2, text="אוי")
+    assert seen["timeout"] == config.REACT_TIMEOUT_SECONDS
+    assert config.REACT_TIMEOUT_SECONDS > config.ROBOT_REACT_WAIT_SECONDS
+    furhat_client.say("שלום")
+    assert seen["timeout"] == furhat_client.TIMEOUT

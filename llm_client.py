@@ -78,9 +78,9 @@ def model_override(engine_key: str):
         _model_override.reset(token)
 
 
-def current_model() -> str:
-    """The model call_llm() would use right now, for recording which model produced a turn."""
-    return _model_override.get() or config.MODEL_DEFAULT
+def current_model(role: str = None) -> str:
+    """The model call_llm(role=role) would use right now, for recording which model produced a turn."""
+    return config.LLM_ROLE_MODELS.get(role) or _model_override.get() or config.MODEL_DEFAULT
 
 
 def call_llm(
@@ -89,22 +89,29 @@ def call_llm(
     model: str = None,
     temperature: float = 0.7,
     max_tokens: int = 500,
+    role: str = None,
 ) -> str:
     """
     Single-turn call. Returns plain text response.
-    model=None -> uses config.MODEL_DEFAULT.
+    Model: explicit `model` > config.LLM_ROLE_MODELS[role] > session override > MODEL_DEFAULT.
     """
-    model = model or current_model()
+    model = model or current_model(role)
     entry = config.LLM_MODELS.get(model)
     client = _client_for(entry["provider"]) if entry else get_client()
 
+    entry = entry or {}
+    kwargs = {"temperature": temperature, "max_tokens": max_tokens}
+    if entry.get("reasoning"):  # the model's thinking counts toward max_tokens
+        kwargs["max_tokens"] += config.REASONING_TOKEN_BUDGET
+        kwargs["extra_body"] = {"reasoning": {"effort": config.REASONING_EFFORT}}
+    if entry.get("fixed_temperature"):
+        del kwargs["temperature"]
     response = client.chat.completions.create(
         model=model,
         messages=[
             {"role": "system", "content": system},
             {"role": "user", "content": user_message},
         ],
-        temperature=temperature,
-        max_tokens=max_tokens,
+        **kwargs,
     )
-    return response.choices[0].message.content
+    return response.choices[0].message.content or ""

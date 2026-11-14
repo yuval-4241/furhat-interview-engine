@@ -58,6 +58,7 @@ def evaluate(
         user_message=user_message,
         max_tokens=400,
         temperature=0.3,  # lower temp — this is a judgment task, not creative
+        role="judgment",
     )
     raw = _strip_fences(raw)
 

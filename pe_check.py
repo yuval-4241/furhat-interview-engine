@@ -36,6 +36,7 @@ def grade_pe_answer(target_emotion: str, pe_answer_text: str) -> dict:
         user_message=f"Target emotion: {target_emotion}\n\nParticipant's answer: {pe_answer_text}",
         max_tokens=200,
         temperature=0.2,
+        role="judgment",
     )
     try:
         data = json.loads(_strip_fences(raw))

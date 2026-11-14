@@ -50,15 +50,32 @@ MODEL = MODEL_DEFAULT
 LLM_PROVIDERS = {
     "lab":    {"base_url": LAB_LLM_BASE_URL, "api_key_env": "LAB_LLM_TOKEN"},
     "openai": {"base_url": None,             "api_key_env": "OPENAI_API_KEY"},
+    "openrouter": {"base_url": "https://openrouter.ai/api/v1", "api_key_env": "OPENROUTER_API_KEY"},
     # e.g. "groq": {"base_url": "https://api.groq.com/openai/v1", "api_key_env": "GROQ_API_KEY"},
 }
 
+# "reasoning": True -> a thinking model: REASONING_TOKEN_BUDGET extra tokens
+# so the thinking doesn't eat the answer. "fixed_temperature": True -> the
+# model rejects a custom temperature (GPT-5), so none is sent.
 LLM_MODELS = {
     "llama3.1-8b":  {"provider": "lab",    "display_name": "Llama 3.1 8B (fast)"},
     "gpt-oss-20b":  {"provider": "lab",    "display_name": "GPT-OSS 20B (default)"},
     "dictalm3-12b": {"provider": "lab",    "display_name": "DictaLM 3 12B (Hebrew)"},
     "gpt-4o-mini":  {"provider": "openai", "display_name": "GPT-4o mini"},
+    "openai/gpt-oss-20b": {"provider": "openrouter", "display_name": "GPT-OSS 20B (OpenRouter)", "reasoning": True},
+    "openai/gpt-5":       {"provider": "openrouter", "display_name": "GPT-5 (OpenRouter)", "reasoning": True, "fixed_temperature": True},
 }
+
+# Split by task: "judgment" = evaluator, emotion classifier, PE check;
+# "lines" = the robot's generated lines (small talk, acknowledgement, PE
+# feedback). A role model set here beats the session's chosen model; empty
+# -> the session's model (or MODEL_DEFAULT), as before. Set in .env.
+LLM_ROLE_MODELS = {
+    "judgment": os.environ.get("LLM_JUDGMENT_MODEL", ""),
+    "lines": os.environ.get("LLM_LINES_MODEL", ""),
+}
+REASONING_EFFORT = os.environ.get("REASONING_EFFORT", "low")  # low = faster; the participant is waiting
+REASONING_TOKEN_BUDGET = 2000
 
 # ── VA Matrix (3x3) — must match your thesis's response bank structure ────
 VALENCE_LEVELS = ["low", "medium", "high"]
@@ -150,12 +167,22 @@ ROBOT_REACTION_ENABLED = os.environ.get("ROBOT_REACTION_ENABLED", "false").lower
 ROBOT_BRIDGE_URL = "http://localhost:8765/react"
 ROBOT_BRIDGE_TIMEOUT = 2.0  # seconds — never let a dead robot connection stall the pipeline
 ROBOT_BRIDGE_BASE_URL = "http://localhost:8765"
+# /react answers only when the reaction is over (emotion hold, sentence, back to
+# neutral), so the Engine never sends the PE question into a running reaction.
+ROBOT_REACT_WAIT_SECONDS = 60  # the bridge's own wait (sent to the skill)
+REACT_TIMEOUT_SECONDS = 70     # the HTTP wait, a little longer than the bridge's
 LISTEN_TIMEOUT_MS = 10000
 LISTEN_END_SIL_MS = 3000
 LISTEN_MAX_SPEECH_MS = 120000
 
 # Grammatical gender of each Furhat Hebrew voice: the robot speaks about
 # itself in this form (Plan 2, decision P2). Voices not listed -> neutral.
+# The listening gestures the researcher approved (listening_gestures.py review);
+# bundled into the skill as a resource, so a rebuild picks them up.
+LISTENING_GESTURES_APPROVED_PATH = os.path.join(
+    os.path.dirname(__file__), "..", "furhat-emotion-study", "interview-skill", "src", "main", "resources",
+    "listening_gestures.json")
+
 VOICE_GENDERS = {"AvriNeural": "male", "HilaNeural": "female", "Hila:DragonLatestNeural": "female"}
 
 # ── Base44 lab app (frontend + DB the Engine polls) ─────────────────────────
@@ -165,6 +192,17 @@ BASE44_BASE_URL = "https://app.base44.com/api/apps"
 BASE44_APP_ID = os.environ.get("BASE44_APP_ID", "")
 BASE44_API_TOKEN = os.environ.get("BASE44_API_TOKEN", "")
 BASE44_TIMEOUT = 10.0  # seconds
+
+# ── New lab website (Supabase, replaces Base44) ─────────────────────────────
+# LAB_BACKEND picks the client (lab_db.py): "base44" (default) or "supabase".
+# Same entities, fields and statuses as Base44; the Engine signs in as its own
+# user (role "engine"). SUPABASE_KEY is the project's publishable key. Env only.
+LAB_BACKEND = os.environ.get("LAB_BACKEND", "base44")
+SUPABASE_URL = os.environ.get("SUPABASE_URL", "")
+SUPABASE_KEY = os.environ.get("SUPABASE_KEY", "")
+ENGINE_EMAIL = os.environ.get("ENGINE_EMAIL", "")
+ENGINE_PASSWORD = os.environ.get("ENGINE_PASSWORD", "")
+SUPABASE_TIMEOUT = 10.0  # seconds
 
 # engine_worker.py polling — light on purpose: runs on the researcher's laptop
 ENGINE_VERSION = "0.1-mvp"
@@ -177,3 +215,6 @@ WORKER_HEARTBEAT_EVERY = 20.0  # app shows "Engine unavailable" after 60s withou
 WORKER_BACKOFF_START = 15.0    # first wait after a Base44 429, doubled each time in a row
 WORKER_BACKOFF_MAX = 120.0
 ROBOT_WAIT_SECONDS = 60.0      # how long a pending RobotCommand waits for the robot before error
+# Small talk is a short conversation per turn (researcher decision 2026-11-14):
+# after an answer the robot may ask up to this many follow-ups before moving on.
+SMALL_TALK_MAX_FOLLOW_UPS = 3

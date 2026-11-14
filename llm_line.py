@@ -47,7 +47,7 @@ def request_json(system: str, user_message: str, required=("line",), max_tokens:
     for _ in range(2):
         try:
             raw = llm_client.call_llm(system=system, user_message=user_message,
-                                      max_tokens=max_tokens, temperature=temperature)
+                                      max_tokens=max_tokens, temperature=temperature, role="lines")
             data = json.loads(_strip_fences(raw))
             values = {key: ("" if data[key] is None else str(data[key])).strip() for key in required}
         except Exception:  # LLM/network error or malformed JSON: retry, then the caller falls back

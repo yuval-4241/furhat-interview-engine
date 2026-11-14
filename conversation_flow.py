@@ -20,7 +20,7 @@ See docs/superpowers/specs/2026-11-04-autonomous-robot-conversation-design.md
 import time
 
 import acknowledgement
-import base44_client as b44
+from lab_db import client as b44
 import config
 import furhat_client
 import hebrew_gender
@@ -117,11 +117,29 @@ def _position(turn: dict, turns: list) -> tuple:
     return (ids.index(turn["id"]) + 1 if turn["id"] in ids else 1), max(len(ids), 1)
 
 
+def _small_talk_log(turn: dict) -> list:
+    """Every line of a small-talk turn's conversation (robot opening, answers, follow-ups)."""
+    return turn.get("small_talk_log") or [{"speaker": "robot", "text": turn.get("question_text", "")}]
+
+
+def _pending_follow_up(turn: dict):
+    """The robot's follow-up line when it was decided but not yet answered, else None."""
+    log_ = turn.get("small_talk_log") or []
+    return log_[-1]["text"] if len(log_) > 1 and log_[-1]["speaker"] == "robot" else None
+
+
+def _line_to_say(turn: dict, session: dict) -> str:
+    return _pending_follow_up(turn) or _question_to_say(turn, session)
+
+
 def dialogue_history(turns: list, turn: dict) -> list:
     """What was said before this turn (last HISTORY_TURNS turns), for the small-talk prompt."""
     earlier = [t for t in sorted(turns, key=_order) if _order(t) < _order(turn)][-HISTORY_TURNS:]
     lines = []
     for t in earlier:
+        if t.get("small_talk_log"):
+            lines.extend(t["small_talk_log"])
+            continue
         feedback = (t.get("final_feedback") or t.get("proposed_feedback")) if t.get("status") == "done" else None
         for speaker, text in (("robot", t.get("question_text")),
                               ("participant", t.get("participant_answer")),
@@ -134,12 +152,12 @@ def dialogue_history(turns: list, turn: dict) -> list:
     return lines
 
 
-def _listen_for(repeat_line: str, session: dict) -> tuple:
+def _listen_for(repeat_line: str, session: dict, backchannel: bool = True) -> tuple:
     """(text, None), or (None, skip_reason). On silence the robot repeats repeat_line once;
     on unrecognized speech it asks the participant to repeat once (spec "Error handling")."""
     repeated = asked_again = False
     while True:
-        heard = furhat_client.listen()
+        heard = furhat_client.listen(backchannel=backchannel)
         text = (heard.get("text") or "").strip()
         if heard.get("status") == "ok" and text:
             return text, None
@@ -168,7 +186,12 @@ def _start(turn, session, turns, propose):
 
 
 def _speak(turn, session, turns, propose):
-    """robot_speaking: the question (generated for small talk), or, after the answer, the acknowledgement."""
+    """robot_speaking: the question (generated for small talk), a small-talk follow-up, or, after
+    the answer, the acknowledgement."""
+    follow_up = _pending_follow_up(turn)
+    if follow_up:
+        _say(follow_up, session)
+        return _update(turn, status="listening")
     if turn.get("participant_answer"):
         _say(turn["robot_line"], session)
         return _update(turn, status="done", done_at=now())
@@ -178,7 +201,7 @@ def _speak(turn, session, turns, propose):
                                         dialogue_history(turns, turn), session.get("language", "he"),
                                         session.get("participant_gender"), session.get("robot_gender"),
                                         session.get("participant_name"))
-        turn = _update(turn, question_text=line, engine_model=llm_client.current_model())
+        turn = _update(turn, question_text=line, engine_model=llm_client.current_model("lines"))
     _say(_question_to_say(turn, session), session)
     if turn.get("expects_answer") is False:
         return _update(turn, status="done", done_at=now())
@@ -191,7 +214,9 @@ def _listen_answer(turn, session, turns, propose):
     if key in _heard:  # a retry after a failed save: don't ask the participant again
         text, skip_reason = _heard[key], None
     else:
-        text, skip_reason = _listen_for(_question_to_say(turn, session), session)
+        text, skip_reason = _listen_for(_line_to_say(turn, session), session)
+    if skip_reason and _pending_follow_up(turn):
+        return _update(turn, status="done", done_at=now())  # no reply to a follow-up: just move on
     if skip_reason:
         return _skip(turn, skip_reason)
     _heard[key] = text
@@ -221,26 +246,53 @@ def _process(turn, session, turns, propose):
     if turn.get("participant_pe_answer"):
         return _grade_pe(turn, session)
     if turn.get("generated_by_engine"):
-        return _update(turn, status="done", done_at=now())
+        return _small_talk_reply(turn, session, turns)
     if turn.get("category") == PBDI_CATEGORY:
-        return _propose(turn, session, propose)
+        return _propose(turn, session, propose, _emotions_shown(turns, turn))
     ack = acknowledgement.acknowledge(turn.get("question_text", ""), turn["participant_answer"],
                                       session.get("language", "he"), session.get("participant_gender"),
                                       session.get("robot_gender"))
     return _update(turn, robot_line=ack["line"], guardrail_flag=ack["guardrail_flag"],
-                   guardrail_reason=ack["guardrail_reason"], engine_model=llm_client.current_model(),
+                   guardrail_reason=ack["guardrail_reason"], engine_model=llm_client.current_model("lines"),
                    status="robot_speaking")
 
 
-def _propose(turn, session, propose):
+def _emotions_shown(turns: list, turn: dict) -> list:
+    """Emotions proposed on earlier turns, so the classifier can vary its pick."""
+    return [t["target_emotion"] for t in sorted(turns, key=_order)
+            if _order(t) < _order(turn) and t.get("target_emotion")]
+
+
+def _small_talk_reply(turn, session, turns):
+    """After a small-talk answer: a follow-up question (the robot says it next), or move on."""
+    convo = _small_talk_log(turn) + [{"speaker": "participant", "text": turn["participant_answer"]}]
+    position, total = _position(turn, turns)
+    follow_ups = sum(1 for line in convo if line["speaker"] == "robot") - 1
+    may_continue = (follow_ups < config.SMALL_TALK_MAX_FOLLOW_UPS
+                    and not (turn.get("phase") == "Opening" and position == total))  # "ready to start?"
+    line = None
+    if may_continue:
+        line = small_talk.follow_up(turn.get("phase"), dialogue_history(turns, turn) + convo,
+                                    session.get("language", "he"), session.get("participant_gender"),
+                                    session.get("robot_gender"), session.get("participant_name"))
+    if line:
+        return _update(turn, small_talk_log=convo + [{"speaker": "robot", "text": line}],
+                       engine_model=llm_client.current_model("lines"), status="robot_speaking")
+    return _update(turn, small_talk_log=convo, status="done", done_at=now())
+
+
+def _propose(turn, session, propose, used_emotions):
     """PBDI: evaluator + emotion + reply, then wait for the researcher's Approve."""
     try:
         proposal = _with_one_retry(
-            lambda: propose(turn.get("question_text", ""), turn["participant_answer"], session.get("mode")))
+            lambda: propose(turn.get("question_text", ""), turn["participant_answer"], session.get("mode"),
+                            used_emotions=used_emotions, language=session.get("language", "he"),
+                            participant_gender=session.get("participant_gender"),
+                            robot_gender=session.get("robot_gender")))
     except Exception as e:  # after one retry: engine_error, and the researcher's Retry re-runs this step
         return _fail(turn, e)
     log(f"Turn {turn.get('order')}: proposed {proposal.get('target_emotion')} ({proposal.get('intensity')})")
-    return _update(turn, **proposal, engine_model=llm_client.current_model(), engine_error="",
+    return _update(turn, **proposal, engine_model=llm_client.current_model("judgment"), engine_error="",
                    engine_responded_at=now(), status="awaiting_approval")
 
 
@@ -275,7 +327,7 @@ def _listen_pe(turn, session, turns, propose):
     if key in _heard:
         text, skip_reason = _heard[key], None
     else:
-        text, skip_reason = _listen_for(PE_QUESTION, session)
+        text, skip_reason = _listen_for(PE_QUESTION, session, backchannel=False)
     if skip_reason:
         return _skip(turn, f"pe_{skip_reason}")
     _heard[key] = text
@@ -299,7 +351,7 @@ def _grade_pe(turn, session):
     log(f"Turn {turn.get('order')}: PE {graded['result']}")
     return _update(turn, pe_result=graded["result"], pe_explanation=graded["explanation"],
                    proposed_feedback=feedback["line"], pe_answer_why=feedback["reason"],
-                   engine_model=llm_client.current_model(),
+                   engine_model=llm_client.current_model("judgment"),
                    engine_responded_at=now(), status="awaiting_feedback")
 
 

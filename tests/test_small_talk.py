@@ -75,3 +75,54 @@ def test_every_gender_has_every_role():
         assert "neutral" in forms, lang
         for form, lines in forms.items():
             assert set(lines) == set(small_talk.ROLES), (lang, form)
+
+
+HISTORY = [{"speaker": "robot", "text": "מה עשית בסוף השבוע?"},
+           {"speaker": "participant", "text": "אפיתי לחם מחמצת"}]
+
+
+def test_follow_up_returns_the_line_and_sends_history(monkeypatch):
+    seen = {}
+
+    def fake(system, user_message, required, *a, **k):
+        seen.update(system=system, user=user_message, required=required)
+        return {"follow_up": "וואו, מחמצת! כמה זמן לוקח להכין אותה?"}
+
+    monkeypatch.setattr(small_talk.llm_line, "request_json", fake)
+
+    line = small_talk.follow_up("Opening", HISTORY, "he", participant_gender="female")
+
+    assert line == "וואו, מחמצת! כמה זמן לוקח להכין אותה?"
+    assert seen["required"] == ("follow_up",)
+    assert "feel at ease" in seen["system"] and "feminine form" in seen["system"]
+    assert seen["user"].endswith("Candidate: אפיתי לחם מחמצת")
+
+
+def test_follow_up_none_means_move_on(monkeypatch):
+    monkeypatch.setattr(small_talk.llm_line, "request_json", lambda *a, **k: {"follow_up": "NONE"})
+    assert small_talk.follow_up("Opening", HISTORY) is None
+
+
+def test_follow_up_llm_failure_moves_on(monkeypatch):
+    monkeypatch.setattr(small_talk.llm_line, "request_json", lambda *a, **k: None)
+    assert small_talk.follow_up("Opening", HISTORY) is None
+
+
+def test_flagged_follow_up_moves_on(monkeypatch):
+    monkeypatch.setattr(small_talk.llm_line, "request_json",
+                        lambda *a, **k: {"follow_up": "כל הכבוד, ספר עוד"})
+    assert small_talk.follow_up("Opening", HISTORY) is None
+
+
+def test_closing_follow_up_answers_their_questions(monkeypatch):
+    seen = {}
+    monkeypatch.setattr(small_talk.llm_line, "request_json",
+                        lambda system, *a, **k: seen.update(system=system) or {"follow_up": "NONE"})
+    small_talk.follow_up("Closing", HISTORY)
+    assert "If the candidate asked you a question, answer it" in seen["system"]
+
+
+def test_small_talk_prompt_aims_to_reduce_stress():
+    from prompts.small_talk_prompt import SMALL_TALK_SYSTEM_PROMPT
+    assert "feel at ease" in SMALL_TALK_SYSTEM_PROMPT
+    assert "follow-up" in SMALL_TALK_SYSTEM_PROMPT

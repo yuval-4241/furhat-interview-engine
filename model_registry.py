@@ -4,7 +4,7 @@ config.LLM_MODELS (the one place new models are added), and resolves which
 model a Session should run on.
 """
 
-import base44_client as b44
+from lab_db import client as b44
 import config
 import llm_client
 

@@ -1,0 +1,158 @@
+{
+  "ShallowNod": {
+    "decision": "keep",
+    "note": ""
+  },
+  "SoftDoubleNod": {
+    "decision": "keep",
+    "note": ""
+  },
+  "NodWithTinyBlink": {
+    "decision": "keep",
+    "note": ""
+  },
+  "EncouragingDipHold": {
+    "decision": "keep",
+    "note": ""
+  },
+  "NodSlightPanLeft": {
+    "decision": "keep",
+    "note": ""
+  },
+  "NodWithInnerBrowLift": {
+    "decision": "",
+    "note": "revised: brows x1.7"
+  },
+  "ShortNodLeftTilt": {
+    "decision": "keep",
+    "note": ""
+  },
+  "BriefBrowRise": {
+    "decision": "",
+    "note": "revised: brows x1.7 (was: make the brow upper)"
+  },
+  "OuterBrowLiftLeft": {
+    "decision": "",
+    "note": "revised: brows x1.7 (was: make the brow upper)"
+  },
+  "OuterBrowLiftRight": {
+    "decision": "",
+    "note": "revised: brows x1.7 (was: make the brow upper)"
+  },
+  "TinyPanCenteringLeft": {
+    "decision": "drop",
+    "note": ""
+  },
+  "MicroNodWithBlink": {
+    "decision": "keep",
+    "note": ""
+  },
+  "PanLeftWithBrow": {
+    "decision": "",
+    "note": "revised: brows x1.7"
+  },
+  "TinyRollReset": {
+    "decision": "keep",
+    "note": ""
+  },
+  "GentleTiltLeftHold": {
+    "decision": "keep",
+    "note": ""
+  },
+  "SoftLeanIn": {
+    "decision": "drop",
+    "note": ""
+  },
+  "LeanInWithLeftTilt": {
+    "decision": "keep",
+    "note": ""
+  },
+  "TiltLeftOuterBrow": {
+    "decision": "",
+    "note": "revised: brows x1.7"
+  },
+  "TiltRightOuterBrow": {
+    "decision": "",
+    "note": "revised: brows x1.7"
+  },
+  "SoftPanTowardSpeakerLeft": {
+    "decision": "drop",
+    "note": ""
+  },
+  "LeanInWithInnerBrow": {
+    "decision": "",
+    "note": "revised: brows x1.7"
+  },
+  "SoftSmileLeftTilt": {
+    "decision": "",
+    "note": "revised: smile x2"
+  },
+  "SmileWithGentleLean": {
+    "decision": "",
+    "note": "revised: smile x2"
+  },
+  "SmileWithSoftPanLeft": {
+    "decision": "drop",
+    "note": ""
+  },
+  "WarmBlinkTiltLeft": {
+    "decision": "drop",
+    "note": ""
+  },
+  "SoftSmileHold": {
+    "decision": "",
+    "note": "do stonger"
+  },
+  "SmileWithInnerBrow": {
+    "decision": "drop",
+    "note": "revised: brows x1.7, smile x2 (was: do nothning cant see)"
+  },
+  "SmileLeanAndReturn": {
+    "decision": "keep",
+    "note": "revised: smile x2 (was: cant see the smile)"
+  },
+  "SmileWithTinyPan": {
+    "decision": "drop",
+    "note": "revised: smile x2 (was: do nothning cant see)"
+  },
+  "NodSlightPanRight": {
+    "decision": "keep",
+    "note": "new: mirror of NodSlightPanLeft"
+  },
+  "ShortNodRightTilt": {
+    "decision": "keep",
+    "note": "new: mirror of ShortNodLeftTilt"
+  },
+  "PanRightWithBrow": {
+    "decision": "keep",
+    "note": "new: mirror of PanLeftWithBrow"
+  },
+  "TinyRollResetMirrored": {
+    "decision": "",
+    "note": "make it little bit loonger"
+  },
+  "GentleTiltRightHold": {
+    "decision": "drop",
+    "note": "new: mirror of GentleTiltLeftHold"
+  },
+  "LeanInWithRightTilt": {
+    "decision": "keep",
+    "note": "new: mirror of LeanInWithLeftTilt"
+  },
+  "SoftSmileRightTilt": {
+    "decision": "drop",
+    "note": "new: mirror of SoftSmileLeftTilt"
+  },
+  "BrowRaiseBoth": {
+    "decision": "keep",
+    "note": "new: researcher request"
+  },
+  "FocusedBrowFurrow": {
+    "decision": "keep",
+    "note": "make it stornger"
+  },
+  "FocusedFurrowNod": {
+    "decision": "drop",
+    "note": "new: researcher request"
+  }
+}

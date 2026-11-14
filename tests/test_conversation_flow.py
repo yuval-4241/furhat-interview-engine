@@ -18,6 +18,7 @@ def fake(monkeypatch):
                         lambda phase, position, total, expects_answer, history, language="he", *genders:
                         f"{phase} {position}/{total}")
     monkeypatch.setattr(flow.acknowledgement, "acknowledge", lambda q, a, language="he", *genders: dict(ACK))
+    monkeypatch.setattr(flow.small_talk, "follow_up", lambda *a, **k: None)
     return store
 
 
@@ -63,6 +64,79 @@ def test_small_talk_turn_walks_its_statuses(fake, monkeypatch):
     assert saved["participant_answer"] == "טוב, אני דנה"
     assert saved["claimed_by"] == flow.WORKER_ID
     assert robot.calls == [("say", "Opening 1/2"), ("listen",)]
+    assert robot.backchannels == [True]
+
+
+def opening_turns(store, session, count=2):
+    return [store.add("Turn", session=session["id"], order=i, phase="Opening", generated_by_engine=True,
+                      expects_answer=True, status="queued", question_text="") for i in range(1, count + 1)]
+
+
+def test_small_talk_follow_up_continues_the_conversation(fake, monkeypatch):
+    s = live_session(fake)
+    t, _ = opening_turns(fake, s)
+    robot = use_robot(monkeypatch, FakeRobot(heard=[heard("אפיתי לחם"), heard("יומיים בערך")]))
+    lines = ["מחמצת? כמה זמן זה לוקח?", None]
+    seen = []
+    monkeypatch.setattr(flow.small_talk, "follow_up",
+                        lambda phase, history, *a, **k: seen.append(history) or lines.pop(0))
+
+    assert run(fake, s, t) is True
+
+    saved = fake.get("Turn", t["id"])
+    assert fake.statuses(t["id"]) == ["robot_speaking", "listening", "engine_processing",
+                                       "robot_speaking", "listening", "engine_processing", "done"]
+    assert robot.calls == [("say", "Opening 1/2"), ("listen",), ("say", "מחמצת? כמה זמן זה לוקח?"), ("listen",)]
+    assert saved["small_talk_log"] == [
+        {"speaker": "robot", "text": "Opening 1/2"}, {"speaker": "participant", "text": "אפיתי לחם"},
+        {"speaker": "robot", "text": "מחמצת? כמה זמן זה לוקח?"}, {"speaker": "participant", "text": "יומיים בערך"}]
+    assert saved["question_text"] == "Opening 1/2" and saved["participant_answer"] == "יומיים בערך"
+    assert seen[0][-1] == {"speaker": "participant", "text": "אפיתי לחם"}
+
+
+def test_small_talk_follow_ups_are_capped(fake, monkeypatch):
+    monkeypatch.setattr(flow.config, "SMALL_TALK_MAX_FOLLOW_UPS", 1)
+    s = live_session(fake)
+    t, _ = opening_turns(fake, s)
+    robot = use_robot(monkeypatch, FakeRobot(heard=[heard("א"), heard("ב")]))
+    calls = []
+    monkeypatch.setattr(flow.small_talk, "follow_up", lambda *a, **k: calls.append(1) or "ועוד שאלה?")
+
+    run(fake, s, t)
+
+    assert len(calls) == 1
+    assert robot.said() == ["Opening 1/2", "ועוד שאלה?"]
+    assert fake.get("Turn", t["id"])["status"] == "done"
+
+
+def test_ready_to_start_turn_has_no_follow_ups(fake, monkeypatch):
+    s = live_session(fake)
+    _, last = opening_turns(fake, s)
+    use_robot(monkeypatch, FakeRobot(heard=[heard("כן, מוכנה")]))
+    monkeypatch.setattr(flow.small_talk, "follow_up", lambda *a, **k: pytest.fail("no follow-up before questions"))
+
+    run(fake, s, last)
+    assert fake.get("Turn", last["id"])["status"] == "done"
+
+
+def test_silence_after_a_follow_up_ends_the_turn_not_skips(fake, monkeypatch):
+    s = live_session(fake)
+    t, _ = opening_turns(fake, s)
+    use_robot(monkeypatch, FakeRobot(heard=[heard("אפיתי לחם")]))
+    monkeypatch.setattr(flow.small_talk, "follow_up", lambda *a, **k: "איזה לחם?")
+
+    run(fake, s, t)
+
+    saved = fake.get("Turn", t["id"])
+    assert saved["status"] == "done" and not saved.get("skipped")
+
+
+def test_history_uses_the_small_talk_log():
+    turns = [{"id": "a", "order": 1, "status": "done", "question_text": "היי", "participant_answer": "ב",
+              "small_talk_log": [{"speaker": "robot", "text": "היי"}, {"speaker": "participant", "text": "א"},
+                                 {"speaker": "robot", "text": "באמת?"}, {"speaker": "participant", "text": "ב"}]},
+             {"id": "b", "order": 2, "status": "queued"}]
+    assert [h["text"] for h in flow.dialogue_history(turns, turns[1])] == ["היי", "א", "באמת?", "ב"]
 
 
 def test_goodbye_turn_does_not_listen(fake, monkeypatch):
@@ -296,7 +370,7 @@ def test_pbdi_answer_stops_for_approval(fake, monkeypatch):
     robot = use_robot(monkeypatch, FakeRobot(heard=[heard("הצלחתי בפרויקט")]))
     calls = []
 
-    assert run(fake, s, t, propose=lambda q, a, mode: calls.append((q, a, mode)) or dict(PROPOSAL)) is False
+    assert run(fake, s, t, propose=lambda q, a, mode, **k: calls.append((q, a, mode)) or dict(PROPOSAL)) is False
 
     saved = fake.get("Turn", t["id"])
     assert fake.statuses(t["id"]) == ["robot_speaking", "listening", "engine_processing", "awaiting_approval"]
@@ -305,13 +379,28 @@ def test_pbdi_answer_stops_for_approval(fake, monkeypatch):
     assert robot.said() == ["ספר על הצלחה"]  # no acknowledgement for PBDI; spoken form is rendered
 
 
+def test_pbdi_passes_emotions_already_shown(fake, monkeypatch):
+    s = live_session(fake)
+    fake.add("Turn", session=s["id"], order=1, phase="Main", status="done", target_emotion="CALM")
+    fake.add("Turn", session=s["id"], order=2, phase="Main", status="skipped", target_emotion="FEAR")
+    t = fake.add("Turn", session=s["id"], order=3, phase="Main", category=flow.PBDI_CATEGORY,
+                 question_text="שאלה", status="engine_processing", participant_answer="תשובה")
+    use_robot(monkeypatch, FakeRobot())
+    seen = {}
+
+    run(fake, s, t, propose=lambda q, a, mode, used_emotions=(), **k: seen.update(used=used_emotions, **k) or dict(PROPOSAL))
+
+    assert seen["used"] == ["CALM", "FEAR"]
+    assert seen["language"] == "he" and "robot_gender" in seen  # the reply is written in the robot's gender
+
+
 def test_pbdi_llm_failure_retries_once_then_engine_error(fake, monkeypatch):
     s = live_session(fake)
     t = pbdi_turn(fake, s, status="engine_processing", participant_answer="תשובה")
     use_robot(monkeypatch, FakeRobot())
     calls = []
 
-    def boom(q, a, mode):
+    def boom(q, a, mode, **k):
         calls.append(1)
         raise TimeoutError("LLM down")
 
@@ -329,7 +418,7 @@ def test_pbdi_llm_failure_once_then_success(fake, monkeypatch):
     use_robot(monkeypatch, FakeRobot())
     replies = [TimeoutError("blip"), dict(PROPOSAL)]
 
-    def flaky(q, a, mode):
+    def flaky(q, a, mode, **k):
         reply = replies.pop(0)
         if isinstance(reply, Exception):
             raise reply
@@ -354,6 +443,7 @@ def test_approved_reaction_then_pe_question_then_grade(fake, monkeypatch):
 
     saved = fake.get("Turn", t["id"])
     assert robot.calls == [("react", "HAPPINESS", 2, "איזה יופי!"), ("say", flow.PE_QUESTION), ("listen",)]
+    assert robot.backchannels == [False]  # no nods while the participant guesses the emotion
     assert fake.statuses(t["id"]) == ["pe_listening", "engine_processing", "awaiting_feedback"]
     assert saved["robot_line"] == "איזה יופי!"
     assert saved["participant_pe_answer"] == "התלהבת"

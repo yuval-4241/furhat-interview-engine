@@ -1,0 +1,758 @@
+[
+  {
+    "name": "ShallowNod",
+    "category": "go_on",
+    "description": "One shallow, brief nod to invite continuation.",
+    "frames": [
+      {
+        "time": [
+          0.25
+        ],
+        "params": {
+          "NECK_TILT": 2.5
+        }
+      }
+    ],
+    "reset": 0.7
+  },
+  {
+    "name": "SoftDoubleNod",
+    "category": "go_on",
+    "description": "Two small nods spaced gently.",
+    "frames": [
+      {
+        "time": [
+          0.2
+        ],
+        "params": {
+          "NECK_TILT": 2.0
+        }
+      },
+      {
+        "time": [
+          0.4
+        ],
+        "params": {
+          "NECK_TILT": 0.0
+        }
+      },
+      {
+        "time": [
+          0.6
+        ],
+        "params": {
+          "NECK_TILT": 2.0
+        }
+      }
+    ],
+    "reset": 1.0
+  },
+  {
+    "name": "NodWithTinyBlink",
+    "category": "go_on",
+    "description": "A shallow nod paired with a light blink.",
+    "frames": [
+      {
+        "time": [
+          0.2
+        ],
+        "params": {
+          "NECK_TILT": 2.2,
+          "BLINK_LEFT": 0.6,
+          "BLINK_RIGHT": 0.6
+        }
+      }
+    ],
+    "reset": 0.8
+  },
+  {
+    "name": "EncouragingDipHold",
+    "category": "go_on",
+    "description": "A gentle forward dip, briefly held.",
+    "frames": [
+      {
+        "time": [
+          0.3,
+          0.8
+        ],
+        "params": {
+          "NECK_TILT": 2.8
+        }
+      }
+    ],
+    "reset": 1.2
+  },
+  {
+    "name": "NodSlightPanLeft",
+    "category": "go_on",
+    "description": "Small nod with a tiny left turn.",
+    "frames": [
+      {
+        "time": [
+          0.2
+        ],
+        "params": {
+          "NECK_TILT": 2.0,
+          "NECK_PAN": -1.2
+        }
+      }
+    ],
+    "reset": 0.8
+  },
+  {
+    "name": "NodWithInnerBrowLift",
+    "category": "go_on",
+    "description": "A shallow nod with a subtle inner brow lift.",
+    "frames": [
+      {
+        "time": [
+          0.25
+        ],
+        "params": {
+          "NECK_TILT": 2.3,
+          "BROW_INNER_UP": 0.31
+        }
+      }
+    ],
+    "reset": 0.9
+  },
+  {
+    "name": "ShortNodLeftTilt",
+    "category": "go_on",
+    "description": "Brief nod with a faint left head tilt.",
+    "frames": [
+      {
+        "time": [
+          0.25
+        ],
+        "params": {
+          "NECK_TILT": 2.2,
+          "NECK_ROLL": -2.0
+        }
+      }
+    ],
+    "reset": 0.9
+  },
+  {
+    "name": "BriefBrowRise",
+    "category": "attention",
+    "description": "A short, light inner brow raise.",
+    "frames": [
+      {
+        "time": [
+          0.2,
+          0.6
+        ],
+        "params": {
+          "BROW_INNER_UP": 0.37
+        }
+      }
+    ],
+    "reset": 0.9
+  },
+  {
+    "name": "OuterBrowLiftLeft",
+    "category": "attention",
+    "description": "Subtle left outer brow lift.",
+    "frames": [
+      {
+        "time": [
+          0.25,
+          0.75
+        ],
+        "params": {
+          "BROW_OUTER_UP_LEFT": 0.41
+        }
+      }
+    ],
+    "reset": 1.1
+  },
+  {
+    "name": "OuterBrowLiftRight",
+    "category": "attention",
+    "description": "Subtle right outer brow lift.",
+    "frames": [
+      {
+        "time": [
+          0.25,
+          0.75
+        ],
+        "params": {
+          "BROW_OUTER_UP_RIGHT": 0.41
+        }
+      }
+    ],
+    "reset": 1.1
+  },
+  {
+    "name": "TinyPanCenteringLeft",
+    "category": "attention",
+    "description": "Small turn left and return to center.",
+    "frames": [
+      {
+        "time": [
+          0.25
+        ],
+        "params": {
+          "NECK_PAN": -1.6
+        }
+      },
+      {
+        "time": [
+          0.6
+        ],
+        "params": {
+          "NECK_PAN": 0.0
+        }
+      }
+    ],
+    "reset": 0.9
+  },
+  {
+    "name": "MicroNodWithBlink",
+    "category": "attention",
+    "description": "A tiny nod with a soft blink to show tracking.",
+    "frames": [
+      {
+        "time": [
+          0.18
+        ],
+        "params": {
+          "NECK_TILT": 1.6,
+          "BLINK_LEFT": 0.5,
+          "BLINK_RIGHT": 0.5
+        }
+      }
+    ],
+    "reset": 0.7
+  },
+  {
+    "name": "PanLeftWithBrow",
+    "category": "attention",
+    "description": "A slight left pan with a gentle inner brow lift.",
+    "frames": [
+      {
+        "time": [
+          0.3,
+          0.7
+        ],
+        "params": {
+          "NECK_PAN": -1.2,
+          "BROW_INNER_UP": 0.27
+        }
+      }
+    ],
+    "reset": 1.0
+  },
+  {
+    "name": "TinyRollReset",
+    "category": "attention",
+    "description": "A faint head roll left, then back to neutral.",
+    "frames": [
+      {
+        "time": [
+          0.25
+        ],
+        "params": {
+          "NECK_ROLL": -1.6
+        }
+      },
+      {
+        "time": [
+          0.6
+        ],
+        "params": {
+          "NECK_ROLL": 0.0
+        }
+      }
+    ],
+    "reset": 0.95
+  },
+  {
+    "name": "GentleTiltLeftHold",
+    "category": "interest",
+    "description": "Slight left head tilt held briefly.",
+    "frames": [
+      {
+        "time": [
+          0.4,
+          1.6
+        ],
+        "params": {
+          "NECK_ROLL": -3.6
+        }
+      }
+    ],
+    "reset": 2.2
+  },
+  {
+    "name": "SoftLeanIn",
+    "category": "interest",
+    "description": "A mild forward lean, briefly sustained.",
+    "frames": [
+      {
+        "time": [
+          0.45,
+          1.5
+        ],
+        "params": {
+          "NECK_TILT": 3.0
+        }
+      }
+    ],
+    "reset": 2.1
+  },
+  {
+    "name": "LeanInWithLeftTilt",
+    "category": "interest",
+    "description": "Small forward lean with a touch of left tilt.",
+    "frames": [
+      {
+        "time": [
+          0.5,
+          1.7
+        ],
+        "params": {
+          "NECK_TILT": 2.4,
+          "NECK_ROLL": -2.2
+        }
+      }
+    ],
+    "reset": 2.3
+  },
+  {
+    "name": "TiltLeftOuterBrow",
+    "category": "interest",
+    "description": "Slight left tilt with a gentle left outer brow lift.",
+    "frames": [
+      {
+        "time": [
+          0.5,
+          1.8
+        ],
+        "params": {
+          "NECK_ROLL": -2.8,
+          "BROW_OUTER_UP_LEFT": 0.31
+        }
+      }
+    ],
+    "reset": 2.4
+  },
+  {
+    "name": "TiltRightOuterBrow",
+    "category": "interest",
+    "description": "Slight right tilt with a gentle right outer brow lift.",
+    "frames": [
+      {
+        "time": [
+          0.5,
+          1.8
+        ],
+        "params": {
+          "NECK_ROLL": 2.8,
+          "BROW_OUTER_UP_RIGHT": 0.31
+        }
+      }
+    ],
+    "reset": 2.4
+  },
+  {
+    "name": "SoftPanTowardSpeakerLeft",
+    "category": "interest",
+    "description": "Small pan left held to show engagement.",
+    "frames": [
+      {
+        "time": [
+          0.45,
+          1.7
+        ],
+        "params": {
+          "NECK_PAN": -2.0
+        }
+      }
+    ],
+    "reset": 2.3
+  },
+  {
+    "name": "LeanInWithInnerBrow",
+    "category": "interest",
+    "description": "Mild forward lean with a soft inner brow lift.",
+    "frames": [
+      {
+        "time": [
+          0.5,
+          1.9
+        ],
+        "params": {
+          "NECK_TILT": 2.6,
+          "BROW_INNER_UP": 0.27
+        }
+      }
+    ],
+    "reset": 2.5
+  },
+  {
+    "name": "SoftSmileLeftTilt",
+    "category": "warmth",
+    "description": "Tiny smile with a slight left tilt.",
+    "frames": [
+      {
+        "time": [
+          0.6,
+          2.0
+        ],
+        "params": {
+          "MOUTH_SMILE_LEFT": 0.2,
+          "MOUTH_SMILE_RIGHT": 0.2,
+          "NECK_ROLL": -2.6
+        }
+      }
+    ],
+    "reset": 2.8
+  },
+  {
+    "name": "SmileWithGentleLean",
+    "category": "warmth",
+    "description": "Subtle smile with a small lean in.",
+    "frames": [
+      {
+        "time": [
+          0.7,
+          2.1
+        ],
+        "params": {
+          "MOUTH_SMILE_LEFT": 0.2,
+          "MOUTH_SMILE_RIGHT": 0.2,
+          "NECK_TILT": 2.2
+        }
+      }
+    ],
+    "reset": 2.9
+  },
+  {
+    "name": "SmileWithSoftPanLeft",
+    "category": "warmth",
+    "description": "Small smile with a slight turn left.",
+    "frames": [
+      {
+        "time": [
+          0.6,
+          2.0
+        ],
+        "params": {
+          "MOUTH_SMILE_LEFT": 0.09,
+          "MOUTH_SMILE_RIGHT": 0.09,
+          "NECK_PAN": -1.6
+        }
+      }
+    ],
+    "reset": 2.6
+  },
+  {
+    "name": "WarmBlinkTiltLeft",
+    "category": "warmth",
+    "description": "Gentle blink with a tiny left tilt and smile.",
+    "frames": [
+      {
+        "time": [
+          0.5
+        ],
+        "params": {
+          "BLINK_LEFT": 0.7,
+          "BLINK_RIGHT": 0.7,
+          "NECK_ROLL": -1.8
+        }
+      },
+      {
+        "time": [
+          1.6
+        ],
+        "params": {
+          "MOUTH_SMILE_LEFT": 0.08,
+          "MOUTH_SMILE_RIGHT": 0.08,
+          "NECK_ROLL": -1.8
+        }
+      }
+    ],
+    "reset": 2.2
+  },
+  {
+    "name": "SoftSmileHold",
+    "category": "warmth",
+    "description": "A faint, relaxed smile held briefly.",
+    "frames": [
+      {
+        "time": [
+          0.6,
+          2.2
+        ],
+        "params": {
+          "MOUTH_SMILE_LEFT": 0.24,
+          "MOUTH_SMILE_RIGHT": 0.24
+        }
+      }
+    ],
+    "reset": 2.8
+  },
+  {
+    "name": "SmileWithInnerBrow",
+    "category": "warmth",
+    "description": "Light smile with a mild inner brow lift.",
+    "frames": [
+      {
+        "time": [
+          0.7,
+          2.1
+        ],
+        "params": {
+          "MOUTH_SMILE_LEFT": 0.18,
+          "MOUTH_SMILE_RIGHT": 0.18,
+          "BROW_INNER_UP": 0.24
+        }
+      }
+    ],
+    "reset": 2.7
+  },
+  {
+    "name": "SmileLeanAndReturn",
+    "category": "warmth",
+    "description": "Subtle smile with a gentle lean and return.",
+    "frames": [
+      {
+        "time": [
+          0.6
+        ],
+        "params": {
+          "MOUTH_SMILE_LEFT": 0.2,
+          "MOUTH_SMILE_RIGHT": 0.2,
+          "NECK_TILT": 1.8
+        }
+      },
+      {
+        "time": [
+          1.6
+        ],
+        "params": {
+          "NECK_TILT": 0.0,
+          "MOUTH_SMILE_LEFT": 0.2,
+          "MOUTH_SMILE_RIGHT": 0.2
+        }
+      }
+    ],
+    "reset": 2.2
+  },
+  {
+    "name": "SmileWithTinyPan",
+    "category": "warmth",
+    "description": "Small smile with a tiny centering pan.",
+    "frames": [
+      {
+        "time": [
+          0.6
+        ],
+        "params": {
+          "MOUTH_SMILE_LEFT": 0.16,
+          "MOUTH_SMILE_RIGHT": 0.16,
+          "NECK_PAN": 1.0
+        }
+      },
+      {
+        "time": [
+          1.5
+        ],
+        "params": {
+          "NECK_PAN": 0.0,
+          "MOUTH_SMILE_LEFT": 0.16,
+          "MOUTH_SMILE_RIGHT": 0.16
+        }
+      }
+    ],
+    "reset": 2.1
+  },
+  {
+    "name": "NodSlightPanRight",
+    "category": "go_on",
+    "description": "Small nod with a tiny left turn. (mirrored)",
+    "frames": [
+      {
+        "time": [
+          0.2
+        ],
+        "params": {
+          "NECK_TILT": 2.0,
+          "NECK_PAN": 1.2
+        }
+      }
+    ],
+    "reset": 0.8
+  },
+  {
+    "name": "ShortNodRightTilt",
+    "category": "go_on",
+    "description": "Brief nod with a faint left head tilt. (mirrored)",
+    "frames": [
+      {
+        "time": [
+          0.25
+        ],
+        "params": {
+          "NECK_TILT": 2.2,
+          "NECK_ROLL": 2.0
+        }
+      }
+    ],
+    "reset": 0.9
+  },
+  {
+    "name": "PanRightWithBrow",
+    "category": "attention",
+    "description": "A slight left pan with a gentle inner brow lift. (mirrored)",
+    "frames": [
+      {
+        "time": [
+          0.3,
+          0.7
+        ],
+        "params": {
+          "NECK_PAN": 1.2,
+          "BROW_INNER_UP": 0.27
+        }
+      }
+    ],
+    "reset": 1.0
+  },
+  {
+    "name": "TinyRollResetMirrored",
+    "category": "attention",
+    "description": "A faint head roll left, then back to neutral. (mirrored)",
+    "frames": [
+      {
+        "time": [
+          0.4
+        ],
+        "params": {
+          "NECK_ROLL": 1.6
+        }
+      },
+      {
+        "time": [
+          0.96
+        ],
+        "params": {
+          "NECK_ROLL": -0.0
+        }
+      }
+    ],
+    "reset": 1.52
+  },
+  {
+    "name": "GentleTiltRightHold",
+    "category": "interest",
+    "description": "Slight left head tilt held briefly. (mirrored)",
+    "frames": [
+      {
+        "time": [
+          0.4,
+          1.6
+        ],
+        "params": {
+          "NECK_ROLL": 3.6
+        }
+      }
+    ],
+    "reset": 2.2
+  },
+  {
+    "name": "LeanInWithRightTilt",
+    "category": "interest",
+    "description": "Small forward lean with a touch of left tilt. (mirrored)",
+    "frames": [
+      {
+        "time": [
+          0.5,
+          1.7
+        ],
+        "params": {
+          "NECK_TILT": 2.4,
+          "NECK_ROLL": 2.2
+        }
+      }
+    ],
+    "reset": 2.3
+  },
+  {
+    "name": "SoftSmileRightTilt",
+    "category": "warmth",
+    "description": "Tiny smile with a slight left tilt. (mirrored)",
+    "frames": [
+      {
+        "time": [
+          0.6,
+          2.0
+        ],
+        "params": {
+          "MOUTH_SMILE_RIGHT": 0.2,
+          "MOUTH_SMILE_LEFT": 0.2,
+          "NECK_ROLL": 2.6
+        }
+      }
+    ],
+    "reset": 2.8
+  },
+  {
+    "name": "BrowRaiseBoth",
+    "category": "attention",
+    "description": "Both brows raised together, briefly.",
+    "frames": [
+      {
+        "time": [
+          0.2,
+          0.6
+        ],
+        "params": {
+          "BROW_INNER_UP": 0.4,
+          "BROW_OUTER_UP_LEFT": 0.4,
+          "BROW_OUTER_UP_RIGHT": 0.4
+        }
+      }
+    ],
+    "reset": 0.9
+  },
+  {
+    "name": "FocusedBrowFurrow",
+    "category": "focus",
+    "description": "A slight, brief brow lowering: concentrating.",
+    "frames": [
+      {
+        "time": [
+          0.3,
+          1.1
+        ],
+        "params": {
+          "BROW_DOWN_LEFT": 0.27,
+          "BROW_DOWN_RIGHT": 0.27
+        }
+      }
+    ],
+    "reset": 1.5
+  },
+  {
+    "name": "FocusedFurrowNod",
+    "category": "focus",
+    "description": "A slight brow lowering with a shallow nod.",
+    "frames": [
+      {
+        "time": [
+          0.3,
+          1.0
+        ],
+        "params": {
+          "BROW_DOWN_LEFT": 0.15,
+          "BROW_DOWN_RIGHT": 0.15,
+          "NECK_TILT": 2.0
+        }
+      }
+    ],
+    "reset": 1.4
+  }
+]

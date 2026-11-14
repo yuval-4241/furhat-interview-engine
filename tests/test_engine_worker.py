@@ -14,7 +14,29 @@ def fake(monkeypatch):
     monkeypatch.setattr(engine_worker.conversation_flow, "_heard", {})
     monkeypatch.setattr(engine_worker, "_robot_was_connected", False)
     monkeypatch.setattr(engine_worker, "_speech_context", {})
+    monkeypatch.setattr(engine_worker.reaction_line, "generate",
+                        lambda emotion, intensity, q, a, *rest, **k: f"reply:{emotion}")
     return store
+
+
+def test_build_proposal_reply_comes_from_the_emotion_and_genders(monkeypatch):
+    class Ev:
+        category, confidence, rationale = "GOOD", 0.9, "Mentions the cancelled trip."
+
+    seen = {}
+    monkeypatch.setattr(engine_worker.evaluator, "evaluate", lambda q, a: Ev)
+    monkeypatch.setattr(engine_worker.emotion_classifier, "classify_emotion",
+                        lambda q, a, used=(): {"emotion": "SADNESS", "intensity": 3})
+    monkeypatch.setattr(engine_worker.reaction_line, "generate",
+                        lambda emotion, intensity, q, a, language, participant_gender, robot_gender:
+                        seen.update(args=(emotion, intensity, language, participant_gender, robot_gender))
+                        or "אוי, ביטלו לך את הטיול?")
+
+    proposal = engine_worker.build_proposal("Q", "הטיול בוטל", "Live", participant_gender="female",
+                                            robot_gender="male")
+
+    assert proposal["proposed_reply"] == "אוי, ביטלו לך את הטיול?"
+    assert seen["args"] == ("SADNESS", 3, "he", "female", "male")
 
 
 def test_question_set_for_training_and_default():
@@ -34,6 +56,24 @@ def test_ensure_turns_creates_six_once(fake):
     assert all(t["status"] == "awaiting_answer" for t in turns)
 
 
+def test_process_turn_passes_emotions_already_shown(fake, monkeypatch):
+    session = fake.add("Session", status="Running", mode="Simulation")
+    fake.add("Turn", session=session["id"], order=1, status="done", target_emotion="FEAR")
+    turn = fake.add("Turn", session=session["id"], order=2, status="awaiting_engine",
+                    question_text="Q", participant_answer="A")
+    seen = {}
+
+    class Ev:
+        category, confidence, rationale = "GOOD", 0.9, "Mentions concrete project outcomes."
+
+    monkeypatch.setattr(engine_worker.evaluator, "evaluate", lambda q, a: Ev)
+    monkeypatch.setattr(engine_worker.emotion_classifier, "classify_emotion",
+                        lambda q, a, used=(): seen.update(used=used) or {"emotion": "CALM", "intensity": 2})
+
+    engine_worker.process_turn(turn, session)
+    assert seen["used"] == ["FEAR"]
+
+
 def test_process_turn_writes_proposal_and_moves_to_approval(fake, monkeypatch):
     session = fake.add("Session", status="Running", mode="Live")
     turn = fake.add("Turn", session=session["id"], order=1, status="awaiting_engine",
@@ -44,7 +84,7 @@ def test_process_turn_writes_proposal_and_moves_to_approval(fake, monkeypatch):
 
     monkeypatch.setattr(engine_worker.evaluator, "evaluate", lambda q, a: Ev)
     monkeypatch.setattr(engine_worker.emotion_classifier, "classify_emotion",
-                        lambda q, a: {"emotion": "HAPPINESS", "intensity": 3})
+                        lambda q, a, used=(): {"emotion": "HAPPINESS", "intensity": 3})
 
     engine_worker.process_turn(turn, session)
 

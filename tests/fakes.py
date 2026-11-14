@@ -70,6 +70,7 @@ class FakeRobot:
         self.heard = list(heard)
         self.connected = connected
         self.calls = []
+        self.backchannels = []  # the backchannel flag of each listen() call
 
     def _sent(self):
         return {"sent": self.connected, "reason": None if self.connected else "connection refused"}
@@ -82,8 +83,9 @@ class FakeRobot:
         self.calls.append(("react", emotion, intensity, text))
         return self._sent()
 
-    def listen(self):
+    def listen(self, backchannel=True):
         self.calls.append(("listen",))
+        self.backchannels.append(backchannel)
         if not self.connected:
             return {"status": "failed", "text": ""}
         return self.heard.pop(0) if self.heard else {"status": "no_speech", "text": ""}

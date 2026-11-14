@@ -77,11 +77,15 @@ _SYSTEM_PROMPT = (
     "Then pick exactly one of these emotions that best fits: "
     "ANGER, CONTEMPT, DISGUST, FEAR, HAPPINESS, SADNESS, SURPRISE, "
     "EXCITED, BORED, SLEEPY, CALM. "
-    "Also rate its intensity from 1 (mild) to 3 (strong).\n\n"
+    "Use the whole range: if the message lists emotions already shown in "
+    "this session, prefer one that is not on that list, as long as it still "
+    "fits the answer. "
+    "Also rate its intensity: 2 (clear) or 3 (strong) -- the robot's face "
+    "must show the reaction visibly, so never 1.\n\n"
     "Respond with ONLY a JSON object of the exact shape: "
     '{"cue": "<the word or phrase, or \\"none\\" if truly nothing '
     'stands out>", "emotion": "<ONE_OF_THE_11_WORDS_ABOVE>", '
-    '"intensity": <1, 2, or 3>}'
+    '"intensity": <2 or 3>}'
 )
 
 
@@ -92,14 +96,25 @@ def _strip_fences(text: str) -> str:
     return text
 
 
-def classify_emotion(question: str, answer_text: str) -> dict:
+# Reactions must be clearly visible on the face (researcher decision,
+# 2026-11-14): intensity 1 is raised to 2. So the low-arousal VA cells of
+# response_bank.py are no longer reached from here.
+MIN_INTENSITY = 2
+
+
+def classify_emotion(question: str, answer_text: str, used_emotions=()) -> dict:
+    """used_emotions: emotions the robot already showed this session, so the pick varies."""
     user_message = f"Interview question: {question}\n\nCandidate answer: {answer_text}"
+    used = list(dict.fromkeys(used_emotions))  # unique, in order
+    if used:
+        user_message += f"\n\nAlready shown in this session: {', '.join(used)}"
 
     raw = llm_client.call_llm(
         system=_SYSTEM_PROMPT,
         user_message=user_message,
         max_tokens=80,
         temperature=0.8,  # variety over reproducibility -- see spec
+        role="judgment",
     )
     raw = _strip_fences(raw)
 
@@ -112,7 +127,7 @@ def classify_emotion(question: str, answer_text: str) -> dict:
     except (json.JSONDecodeError, KeyError, ValueError, TypeError):
         return dict(_FALLBACK)
 
-    return {"emotion": emotion, "intensity": intensity}
+    return {"emotion": emotion, "intensity": max(intensity, MIN_INTENSITY)}
 
 
 def derive_valence(emotion: str) -> str:

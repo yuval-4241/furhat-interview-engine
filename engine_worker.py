@@ -17,22 +17,23 @@ See docs/superpowers/specs/2026-11-02-base44-lab-app-integration-design.md.
 import threading
 import time
 
-import base44_client as b44
 import config
+import lab_db
+from lab_db import client as b44
 import conversation_flow
 import emotion_classifier
 import evaluator
 import furhat_client
 import guardrail
 import llm_client
+import llm_line
 import model_registry
 import pe_check
+import reaction_line
 from question_bank import QuestionBank
-from response_bank import ResponseBank
 from worker_common import WORKER_ID, log as _log, now as _now
 
 _question_bank = QuestionBank()
-_response_bank = ResponseBank()
 
 # RobotCommand id -> monotonic time it was first seen waiting for the robot
 _robot_wait_started = {}
@@ -99,6 +100,8 @@ def question_set_for(session_type: str) -> int:
 
 
 def ensure_turns(session: dict) -> None:
+    if not lab_db.ENGINE_MANAGES_MODELS_AND_TURNS:
+        return  # the new website creates every Turn when a session starts
     if b44.list_records("Turn", {"session": session["id"]}, limit=1):
         return
     questions = _question_bank.session(question_set_for(session.get("session_type")))
@@ -114,7 +117,8 @@ def ensure_turns(session: dict) -> None:
 
 # ── awaiting_engine -> awaiting_approval ────────────────────────────────────
 
-def build_proposal(question: str, answer: str, mode: str) -> dict:
+def build_proposal(question: str, answer: str, mode: str, used_emotions=(), language: str = "he",
+                   participant_gender=None, robot_gender=None) -> dict:
     if mode == "Mock":
         emotion, intensity = "HAPPINESS", 2
         ev_fields = {"evaluation_category": "NEUTRAL", "evaluator_confidence": 1.0,
@@ -123,7 +127,7 @@ def build_proposal(question: str, answer: str, mode: str) -> dict:
     else:
         ev = evaluator.evaluate(question, answer)
         gr = guardrail.check_rationale(ev.rationale)
-        reaction = emotion_classifier.classify_emotion(question, answer)
+        reaction = emotion_classifier.classify_emotion(question, answer, used_emotions)
         emotion, intensity = reaction["emotion"], reaction["intensity"]
         ev_fields = {"evaluation_category": ev.category, "evaluator_confidence": ev.confidence,
                      "engine_rationale": ev.rationale}
@@ -132,13 +136,18 @@ def build_proposal(question: str, answer: str, mode: str) -> dict:
 
     valence = emotion_classifier.derive_valence(emotion)
     arousal = emotion_classifier.derive_arousal(intensity)
+    if mode == "Mock":
+        reply = reaction_line.FALLBACK_LINES[llm_line.language_or_default(language)][emotion]
+    else:  # the spoken reply comes from the same classified emotion as the face
+        reply = reaction_line.generate(emotion, intensity, question, answer, language,
+                                       participant_gender, robot_gender)
     return {
         **ev_fields,
         "target_emotion": emotion,
         "intensity": intensity,
         "valence": _app_level(valence),
         "arousal": _app_level(arousal),
-        "proposed_reply": _response_bank.get(valence, arousal),
+        "proposed_reply": reply,
         "guardrail_flag": flag,
         "guardrail_reason": reason,
         # answer key for the PE step — shown to the researcher only after the participant answers
@@ -152,7 +161,13 @@ def process_turn(turn: dict, session: dict) -> None:
                      {"status": "engine_processing", "claimed_by": WORKER_ID, "claimed_at": _now()}):
         return
     try:
-        proposal = build_proposal(turn["question_text"], turn.get("participant_answer", ""), session.get("mode"))
+        earlier = sorted(b44.list_records("Turn", {"session": session["id"]}, limit=200),
+                         key=lambda t: t.get("order") or 0)
+        used = [t["target_emotion"] for t in earlier if t["id"] != turn["id"] and t.get("target_emotion")]
+        speech = speech_context(session)
+        proposal = build_proposal(turn["question_text"], turn.get("participant_answer", ""), session.get("mode"),
+                                  used, session.get("language", "he"), speech["participant_gender"],
+                                  speech["robot_gender"])
     except Exception as e:
         # stays in engine_processing; the website shows engine_error + a Retry button
         b44.update_record("Turn", turn["id"], {"engine_error": f"{type(e).__name__}: {e}"})
@@ -161,7 +176,7 @@ def process_turn(turn: dict, session: dict) -> None:
     b44.update_record("Turn", turn["id"], {
         **proposal,
         "engine_error": "",
-        "engine_model": llm_client.current_model(),
+        "engine_model": llm_client.current_model("judgment"),
         "status": "awaiting_approval",
         "engine_responded_at": _now(),
     })
@@ -354,11 +369,14 @@ def poll_once(robot_connected: bool) -> bool:
 
 def main() -> None:
     _log(f"Engine worker {WORKER_ID} started (Ctrl+C to stop)")
-    try:
-        model_registry.sync_to_base44()
-        _log("LLM models synced to the website")
-    except b44.Base44Error as e:
-        _log(f"Model sync failed (continuing): {e}")
+    if lab_db.ENGINE_MANAGES_MODELS_AND_TURNS:
+        try:
+            model_registry.sync_to_base44()
+            _log("LLM models synced to the website")
+        except b44.Base44Error as e:
+            _log(f"Model sync failed (continuing): {e}")
+    else:
+        _log(f"Website backend: {config.LAB_BACKEND} (it manages the model list)")
     start_heartbeat_thread()
     backoff = 0.0
     while True:

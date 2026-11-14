@@ -27,10 +27,10 @@ def test_classify_emotion_discards_cue_field_from_return_value(monkeypatch):
     classify_emotion()'s return value, only emotion/intensity do."""
     monkeypatch.setattr(
         emotion_classifier.llm_client, "call_llm",
-        lambda **k: '{"cue": "no complaints, flat factual tone", "emotion": "SURPRISE", "intensity": 1}'
+        lambda **k: '{"cue": "no complaints, flat factual tone", "emotion": "SURPRISE", "intensity": 2}'
     )
     result = classify_emotion("Tell me about yourself", "I have 5 years of experience in QA.")
-    assert result == {"emotion": "SURPRISE", "intensity": 1}
+    assert result == {"emotion": "SURPRISE", "intensity": 2}
     assert "cue" not in result
 
 
@@ -119,3 +119,34 @@ def test_core_emotions_includes_all_eleven_robot_gestures():
         "ANGER", "CONTEMPT", "DISGUST", "FEAR", "HAPPINESS", "SADNESS", "SURPRISE",
         "EXCITED", "BORED", "SLEEPY", "CALM",
     }
+
+
+def test_intensity_1_is_raised_to_2(monkeypatch):
+    """Reactions must be clearly visible: intensity is 2 or 3 only."""
+    monkeypatch.setattr(emotion_classifier.llm_client, "call_llm",
+                        lambda **k: '{"emotion": "SADNESS", "intensity": 1}')
+    assert classify_emotion("Q", "A") == {"emotion": "SADNESS", "intensity": 2}
+
+
+def test_prompt_asks_for_intensity_2_or_3_only(monkeypatch):
+    captured = {}
+    monkeypatch.setattr(emotion_classifier.llm_client, "call_llm",
+                        lambda **k: captured.update(k) or '{"emotion": "FEAR", "intensity": 3}')
+    classify_emotion("Q", "A")
+    assert "2 (clear) or 3 (strong)" in captured["system"]
+
+
+def test_used_emotions_are_listed_in_the_message(monkeypatch):
+    captured = {}
+    monkeypatch.setattr(emotion_classifier.llm_client, "call_llm",
+                        lambda **k: captured.update(k) or '{"emotion": "FEAR", "intensity": 3}')
+    classify_emotion("Q", "A", used_emotions=["HAPPINESS", "CALM", "HAPPINESS"])
+    assert "Already shown in this session: HAPPINESS, CALM" in captured["user_message"]
+
+
+def test_no_used_emotions_no_list(monkeypatch):
+    captured = {}
+    monkeypatch.setattr(emotion_classifier.llm_client, "call_llm",
+                        lambda **k: captured.update(k) or '{"emotion": "FEAR", "intensity": 3}')
+    classify_emotion("Q", "A")
+    assert "Already shown" not in captured["user_message"]

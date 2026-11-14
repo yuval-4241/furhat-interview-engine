@@ -92,3 +92,66 @@ def test_clients_get_timeout_and_retry_limits(monkeypatch):
     for kwargs in built:
         assert kwargs["timeout"] == config.LLM_TIMEOUT_SECONDS == 60
         assert kwargs["max_retries"] == config.LLM_MAX_RETRIES == 1
+
+
+def _capture_kwargs(monkeypatch, content="ok"):
+    sent = []
+
+    class Completions:
+        def create(self, **kwargs):
+            sent.append(kwargs)
+            return type("R", (), {"choices": [type("C", (), {"message": type("M", (), {"content": content})()})()]})()
+
+    monkeypatch.setattr(llm_client, "_client_for",
+                        lambda provider: type("Client", (), {"chat": type("Chat", (), {"completions": Completions()})()})())
+    return sent
+
+
+def test_role_model_beats_session_override(monkeypatch):
+    sent = _capture_kwargs(monkeypatch)
+    monkeypatch.setitem(llm_client.config.LLM_ROLE_MODELS, "judgment", "openai/gpt-5")
+
+    with llm_client.model_override("gpt-4o-mini"):
+        llm_client.call_llm("sys", "hi", role="judgment")
+        llm_client.call_llm("sys", "hi", role="lines")  # no lines model set -> session model
+        assert llm_client.current_model("judgment") == "openai/gpt-5"
+        assert llm_client.current_model("lines") == "gpt-4o-mini"
+
+    assert [s["model"] for s in sent] == ["openai/gpt-5", "gpt-4o-mini"]
+
+
+def test_reasoning_model_drops_temperature_and_gets_thinking_budget(monkeypatch):
+    sent = _capture_kwargs(monkeypatch)
+
+    llm_client.call_llm("sys", "hi", model="openai/gpt-5", temperature=0.3, max_tokens=400)
+
+    kwargs = sent[0]
+    assert "temperature" not in kwargs
+    assert kwargs["max_tokens"] == 400 + config.REASONING_TOKEN_BUDGET
+    assert kwargs["extra_body"] == {"reasoning": {"effort": config.REASONING_EFFORT}}
+
+
+def test_plain_model_keeps_temperature(monkeypatch):
+    sent = _capture_kwargs(monkeypatch)
+    llm_client.call_llm("sys", "hi", model="gpt-4o-mini", temperature=0.8, max_tokens=200)
+    assert sent[0]["temperature"] == 0.8 and sent[0]["max_tokens"] == 200
+    assert "extra_body" not in sent[0]
+
+
+def test_gpt_oss_gets_thinking_budget_but_keeps_temperature(monkeypatch):
+    # it thinks too: without the budget a 100-token line came back empty (2026-11-10)
+    sent = _capture_kwargs(monkeypatch)
+    llm_client.call_llm("sys", "hi", model="openai/gpt-oss-20b", temperature=0.8, max_tokens=100)
+    assert sent[0]["temperature"] == 0.8
+    assert sent[0]["max_tokens"] == 100 + config.REASONING_TOKEN_BUDGET
+
+
+def test_empty_content_returns_empty_string(monkeypatch):
+    _capture_kwargs(monkeypatch, content=None)
+    assert llm_client.call_llm("sys", "hi", model="openai/gpt-5") == ""
+
+
+def test_openrouter_models_are_registered():
+    for key in ("openai/gpt-5", "openai/gpt-oss-20b"):
+        assert config.LLM_MODELS[key]["provider"] == "openrouter"
+    assert config.LLM_PROVIDERS["openrouter"]["api_key_env"] == "OPENROUTER_API_KEY"

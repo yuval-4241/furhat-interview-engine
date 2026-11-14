@@ -36,15 +36,25 @@ def react(emotion: str, intensity: int, text: str = None, language: str = None, 
         payload["language"] = language
     if gender:
         payload["gender"] = gender
-    return _post("/react", payload)
+    payload["wait_seconds"] = config.ROBOT_REACT_WAIT_SECONDS
+    # Returns when the robot has finished the reaction and is back at neutral.
+    return _post("/react", payload, timeout=config.REACT_TIMEOUT_SECONDS)
 
 
-def listen() -> dict:
-    """Blocks until the robot finishes listening (up to ~2.5 min). Never raises."""
+def play_gesture(gesture: dict) -> dict:
+    """Plays one gesture given as listening_gestures.py JSON (for the researcher's review)."""
+    return _post("/gesture", gesture)
+
+
+def listen(backchannel: bool = True) -> dict:
+    """Blocks until the robot finishes listening (up to ~2.5 min). Never raises.
+    backchannel: the robot nods/raises its brows now and then while listening;
+    off for the PE answer, where a nod could read as "correct"."""
     payload = {
         "timeout": config.LISTEN_TIMEOUT_MS,
         "endSil": config.LISTEN_END_SIL_MS,
         "maxSpeech": config.LISTEN_MAX_SPEECH_MS,
+        "backchannel": backchannel,
     }
     wait_s = (config.LISTEN_TIMEOUT_MS + config.LISTEN_MAX_SPEECH_MS) / 1000 + 40
     try:
@@ -97,14 +107,14 @@ def health_check() -> bool:
         return False
 
 
-def _post(path: str, payload: dict) -> dict:
+def _post(path: str, payload: dict, timeout: float = TIMEOUT) -> dict:
     body = json.dumps(payload, ensure_ascii=False).encode("utf-8")
     try:
         resp = requests.post(
             f"{config.ROBOT_BRIDGE_BASE_URL}{path}",
             data=body,
             headers={"Content-Type": "application/json; charset=utf-8"},
-            timeout=TIMEOUT,
+            timeout=timeout,
         )
         resp.raise_for_status()
         return {"sent": True, "reason": None}
