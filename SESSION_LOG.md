@@ -423,3 +423,99 @@ listening (No-Masking / PE risk).
 and test them live; finish reviewing the 13 listening gestures (Tue 17.11);
 Py-Feat check of the 33 expressions (Tue 17.11). Run `ab_test.py` on GPT-5
 before collecting data.
+
+## 2026-11-16 — Hebrew voice: ElevenLabs
+
+**Decided**
+- Female voice (Noa): ElevenLabs "Danit - Natural Israeli Hebrew"
+  (`s0T0DT6EAPeX57MQpn3I`). Male voice
+  (Daniel): ElevenLabs "Erez - Natural Israeli Hebrew"
+  (`AZzja2JCoYeMe9vDQBll`). Both added to the account of the `.env` key (new key, Starter plan) via the
+  API, 2026-11-16.
+- Option 1 (now): use the ElevenLabs voice through Furhat as is. Checked in
+  furhat-commons 2.9.3: `ElevenlabsConfig` carries only the API key (no
+  stability / similarity / speed / style), and `ElevenlabsVoice` ignores
+  `prosody` (pitch/rate/volume) and `emphasis` - it returns the text
+  unchanged. So no voice parameters reach the robot on this path.
+- Option 2 (later, if rate/emotion in the voice is needed): the Engine calls
+  the ElevenLabs API itself (speed, stability, style per line, maybe per
+  emotion), and the robot plays the audio. Costs: added latency per line;
+  lip sync with external audio not yet checked. Effort: medium-high.
+- Note: `.env` has `LLM_LINES_MODEL=openai/gpt-5` (CLAUDE.md says
+  `gpt-oss-20b`) - decide which one.
+
+**RESUME FROM HERE:** find the names the robot lists them under once the ElevenLabs key
+is sent, set them as Noa's / Daniel's `furhat_voice`, add them to
+`config.VOICE_GENDERS` (female / male), test on the robot.
+
+**Voice switch: Google Chirp 3 HD (decided 2026-11-16, later the same day)**
+- ElevenLabs on the virtual robot: the key now reaches the robot (the skill
+  falls back to reading `ELEVENLABS_API_KEY` from `conversation_engine/.env`,
+  uncommitted in furhat-emotion-study), but `furhat.setVoice(language, name)`
+  with "Danit - Natural Israeli Hebrew" returns ok and keeps the old voice.
+- Compared 11 Hebrew samples (Google Chirp 3 HD / WaveNet, ElevenLabs v3 / v4
+  / v4 Turbo, OpenAI gpt-4o-mini-tts) on one hard sentence. Chosen:
+  `he-IL-Chirp3-HD-Charon` (male, Daniel) and `he-IL-Chirp3-HD-Aoede`
+  (female, Noa). About 1.5 s per sentence. Key: `GOOGLE_TEXT_TO_SPEECH_API_KEY`.
+- Furhat has no Google TTS voice, so this is option 2: generate the audio
+  ourselves and have the robot play it. Gemini-TTS (prompt-steerable) needs
+  Vertex AI permissions (403 with the current key) - later option.
+- Built (interview-skill, uncommitted, compiles, skill tests pass, not yet
+  heard on the robot): `tts/GoogleTts.kt` synthesizes each sentence in
+  parallel (LINEAR16 16 kHz WAV), caches it in `~/.interview-skill/tts-cache`
+  by (voice, text), and serves it on a separate port 8766 (`/audio/`) that
+  the robot plays as `Audio(url, text, speech = true)`. A persona voice that
+  looks like a Google name (`he-IL-Chirp3-HD-Aoede`) switches to it; in a
+  reaction, synthesis runs during the 2 s hold. Google error / > 8 s -> the
+  robot's own voice. `tts/EngineEnv.kt`: keys from the environment, else
+  from `conversation_engine/.env` (the launcher starts the skill without it).
+  Physical robot: set `TTS_AUDIO_HOST` (the Mac's address) in `.env`.
+- Engine: `config.VOICE_GENDERS` += Charon (male), Aoede (female). 310
+  passed, 5 skipped.
+
+**RESUME FROM HERE:** start the virtual robot, load the skill, hear Aoede via
+`/persona` + `/say`; then switch the site's personas (Noa -> Aoede, Daniel ->
+Charon); check lip sync; then the physical robot (`TTS_AUDIO_HOST`).
+
+## 2026-11-17 — Expression validation (Py-Feat + MediaPipe), Fear/Disgust retune
+
+All in `furhat-emotion-study/expression_validation/` (README = full method,
+decisions and results; commits 3d61a19 .. cbb4b37 in that repo).
+
+**Done**
+- Recorded the 12 missing clips (Excited, Bored, Sleepy, Calm x L1-L3): all
+  33 expressions now have clips. Recording fixes in EmotionSkill
+  (`RECORD_ONLY_MISSING`, `AUTO_RECORD`, OBS never moves a file it didn't
+  record).
+- Check 1, Py-Feat (researcher decision: hold-window average, baseline
+  subtracted): recognition of the 6 basic emotions 56% -> **67%** after the
+  retune; **every L3 recognised**. Surprise and Happiness 3/3.
+- Check 2, fidelity (MediaPipe's 52 ARKit blendshapes vs. the commanded
+  values parsed from `EmotionsLibrary.kt`, Spearman): eye blink, brow raise,
+  eye widen, jaw open, smile, frown track; **nose wrinkle, cheek squint,
+  dimples, lip press are never visible on this face**.
+- Retuned Disgust (mouth-led, since the nose wrinkle doesn't render) and Fear
+  (ARKit brow-down + JAW_OPEN). Disgust L3: anger -> disgust (0.69).
+
+**Limitation (thesis): Fear vs. Surprise on the Furhat face.** AU04 barely
+rises (brow-down and inner-brow-raise cancel) and AU20 only fires with an
+open jaw, so Fear L2 reads as surprise (0.30 vs. 0.46) and Fear L3 only
+narrowly as fear (0.44 vs. 0.37). Three Fear L2 retunes tried; the third was
+worse and was reverted.
+
+**Decision (researcher, option C):** document the limitation, and in PE
+grading a SURPRISE word for a FEAR target is **Partial** (one direction only;
+`prompts/pe_check_prompt.py`, test in `tests/test_pe_check.py`).
+Not done (option B, declined): forcing Fear to intensity 3.
+
+- Build note: VS Code's Red Hat Java extension imported the Furhat Gradle
+  project with Java 25, upgraded the wrapper to 9.7.1 and overwrote
+  `emotion-library.jar` with an empty jar. Disabled for that folder in
+  `furhat-emotion-study/.vscode/settings.json`; wrapper restored to 8.9.
+- Test suite: 311 passed, 5 skipped.
+
+**RESUME FROM HERE:** the researcher looks at the new Fear/Disgust on the
+robot (the human eye is the final judge, not Py-Feat) and reviews
+`expression_validation/config.py` EXPECTED_AUS; approve the opening-script
+design doc (`docs/superpowers/specs/2026-11-17-fixed-opening-script-design.md`);
+the API keys / Google TTS voice from 2026-11-16 (deferred to "tomorrow").

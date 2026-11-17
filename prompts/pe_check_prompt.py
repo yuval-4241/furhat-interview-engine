@@ -9,6 +9,15 @@ the anger family. BORED and SLEEPY are not in Shaver; they are treated as
 one low-energy family. A word in the target's family that sits closer to
 a DIFFERENT emotion the robot can show is Partial.
 
+One exception outside the families: FEAR -> SURPRISE words are Partial
+(researcher decision 2026-11-17). The expression validation
+(furhat-emotion-study/expression_validation) found that on the Furhat face
+fear and surprise are hard to tell apart: AU04 barely rises and AU20 needs
+an open jaw, so Fear L2 reads as surprise and Fear L3 only narrowly as fear.
+A participant who sees fear and says "surprised" may be reading the face
+correctly. One direction only: the robot's Surprise reads clearly as
+surprise (0.87-0.94), so "afraid" for a SURPRISE target stays Wrong.
+
 DRAFT word lists -- the researcher must review them before any participant
 session (plan decision P11). The lists are examples, not exhaustive.
 """
@@ -33,7 +42,7 @@ WORD_LISTS = {
     "DISGUST": {"correct": ["נגעל", "גועל", "סלידה", "דחייה", "מגעיל"],
                 "partial": {"CONTEMPT": ["מזלזל", "בז"], "ANGER": ["כועס"]}},
     "FEAR": {"correct": ["פוחד", "מפחד", "חושש", "דואג", "לחוץ", "מודאג", "חרד", "נבהל"],
-             "partial": {}},
+             "partial": {"SURPRISE": ["מופתע", "הופתע", "נדהם", "המום"]}},  # face limitation, see above
     "SADNESS": {"correct": ["עצוב", "מאוכזב", "מצטער", "מדוכדך", "מבואס", "אכזבה"],
                 "partial": {}},
     "SURPRISE": {"correct": ["מופתע", "הופתע", "נדהם", "המום", "לא ציפה"],
@@ -66,7 +75,8 @@ PE_CHECK_SYSTEM_PROMPT = (
     "target emotion through what happened (for example \"you smiled because I said I "
     "succeeded\" for HAPPINESS).\n"
     "- \"Partial\": a word in the target's family that is closer to a DIFFERENT emotion this "
-    "robot can show (see the lists below).\n"
+    "robot can show (see the lists below). Also Partial: a SURPRISE word when the target is "
+    "FEAR — on this robot's face the two look alike (not the other way round).\n"
     "- \"Wrong\": a different emotion family, or no emotion named.\n"
     "Both grammatical genders count the same (כועס = כועסת). Informal phrasing counts.\n"
     "The participant's reason (\"why\") does NOT change the grade: comment on it in the "

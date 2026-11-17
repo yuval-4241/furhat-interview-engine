@@ -64,3 +64,11 @@ def test_word_lists_cover_every_displayable_emotion():
 def test_prompt_contains_the_spec_examples():
     assert "מאושר" in PE_CHECK_SYSTEM_PROMPT and "מתלהב" in PE_CHECK_SYSTEM_PROMPT
     assert '"Partial"' in PE_CHECK_SYSTEM_PROMPT
+
+
+def test_surprise_is_partial_for_fear_but_not_the_other_way():
+    """Researcher decision 2026-11-17: on the Furhat face fear reads as surprise
+    (expression validation), so "surprised" for FEAR is Partial — one way only."""
+    assert "SURPRISE" in WORD_LISTS["FEAR"]["partial"]
+    assert "FEAR" not in WORD_LISTS["SURPRISE"]["partial"]
+    assert "מופתע" in WORD_LISTS["FEAR"]["partial"]["SURPRISE"]
