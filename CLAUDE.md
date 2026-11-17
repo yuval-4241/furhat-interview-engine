@@ -324,11 +324,17 @@ the doc's status table before assuming something described there exists.
   trades off, and your recommendation, and wait for her answer. Whenever
   something needs her action, list the exact steps she has to do (commands,
   links, where to click), numbered.
+- **Prefer a simple architecture and simple code.** Choose the simplest
+  design that does the job: few moving parts, small functions, plain data,
+  no abstraction or configurability until it's needed. When two approaches
+  both work, recommend the simpler one and say why.
 - **Every academic paper you use must be recorded.** When a paper backs a
   decision, a design, a feature list or anything written for the thesis,
   add it to the literature files (`docs/literature/` — e.g.
   `literature_review.xlsx` or the topic review such as
-  `vocal_emotion_features.md`) or to the papers list in Notion, with: which
+  `vocal_emotion_features.md`) or to the Notion table "thesis paper using
+  in code"
+  (https://app.notion.com/p/thesis-paper-using-in-code-41b0701ff8ee8009828ef5ac7705f21c), with: which
   paper (authors, year, title, venue, link) and **for what purpose** it was
   used here. A paper that isn't recorded may not be cited.
 - Current day-by-day task list and progress live in `PROJECT_PLAN.md`
