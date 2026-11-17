@@ -32,7 +32,7 @@ import small_talk
 from worker_common import WORKER_ID, log, now
 
 PBDI_CATEGORY = "Behavioral (PBDI)"
-# TODO(researcher): approve wording. Friend-toned per-turn question (2026-11-17 spec);
+# Friend-toned per-turn question (2026-11-17 spec; wording approved by the researcher 2026-11-17);
 # must match the website's sessionUtils.PE_QUESTION.
 PE_QUESTION = "שמת לב איך הגבתי? מה לדעתך עבר עליי?"
 NOT_HEARD_LINE = "סליחה, לא שמעתי. אפשר לחזור?"
