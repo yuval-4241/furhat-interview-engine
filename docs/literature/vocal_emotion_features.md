@@ -205,11 +205,23 @@ recognised poorly there. **To verify against [1]'s tables before use.**
    face check in `furhat-emotion-study/expression_validation`.
 3. **Hebrew:** only anger, happiness and sadness have been validated in
    Hebrew here [8]; the rest of the table rests on other languages.
-4. **Implementation (to check):** the voice must be controllable in pitch,
-   rate and loudness per line. Furhat's ElevenLabs voices ignore prosody
-   (checked 2026-11-16); whether Google's Chirp 3 HD voices accept pitch and
-   rate control, or whether a prompt-steerable model (Gemini-TTS) is needed,
-   is still open.
+4. **Implementation:** the voice must be controllable per line. Furhat's
+   ElevenLabs voices ignore prosody (checked 2026-11-16). Google Chirp 3 HD
+   (he-IL Aoede/Charon), measured 2026-11-17:
+   - **rate** — works (`speakingRate`, or SSML `<prosody rate>`);
+   - **loudness** — works and is exact (SSML `volume="+6dB"` doubled the RMS);
+   - **pitch level** — the `pitch` parameter is refused ("This voice does not
+     support pitch parameters"), but SSML `<prosody pitch>` moves F0 in the
+     right direction, imprecisely (+4 st requested -> about +2 st measured,
+     -4 st -> about -4 st; median F0 over 3 runs each), and the generative
+     voice varies run to run;
+   - **pitch range, voice quality, onsets** — not controllable;
+   - `[pause]` markup — not supported for he-IL.
+   So of the 4–7 features per emotion, rate, loudness, pitch level and a
+   final rise/fall can be set; the rest needs a prompt-steerable model
+   (Gemini-TTS, needs Vertex AI access) if it turns out to matter.
+   First-draft profiles and samples: `~/Desktop/emotion_voice_samples/`
+   (`profiles.json`), for the researcher to listen to.
 5. **Methodology:** adding the voice channel changes what the participant
    judges in the PE question (face + voice + text instead of face + text).
    That is a design decision to agree before data collection.
