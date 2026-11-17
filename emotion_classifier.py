@@ -25,6 +25,7 @@ guarantee from the original VA-first design.
 import json
 import re
 import config
+import guardrail
 import llm_client
 
 CORE_EMOTIONS = [
@@ -63,7 +64,7 @@ INTENSITY_TO_AROUSAL = {1: "low", 2: "medium", 3: "high"}
 # same "fail closed" philosophy as emotion_bank.pick_emotion_llm()'s
 # candidates[0] fallback. SURPRISE/2 is the mid-valence, mid-intensity
 # cell: a parsing failure implies neither a positive nor a negative read.
-_FALLBACK = {"emotion": "SURPRISE", "intensity": 2}
+_FALLBACK = {"emotion": "SURPRISE", "intensity": 2, "trigger": ""}
 
 _SYSTEM_PROMPT = (
     "You are classifying the emotional content of a job interview answer, "
@@ -85,7 +86,9 @@ _SYSTEM_PROMPT = (
     "Respond with ONLY a JSON object of the exact shape: "
     '{"cue": "<the word or phrase, or \\"none\\" if truly nothing '
     'stands out>", "emotion": "<ONE_OF_THE_11_WORDS_ABOVE>", '
-    '"intensity": <2 or 3>}'
+    '"intensity": <2 or 3>, "trigger": "<one short sentence: what in the '
+    'CONTENT of the answer led to this emotion, e.g. \\"The candidate led a '
+    'project alone as a junior.\\" Never about how they spoke.>"}'
 )
 
 
@@ -112,7 +115,7 @@ def classify_emotion(question: str, answer_text: str, used_emotions=()) -> dict:
     raw = llm_client.call_llm(
         system=_SYSTEM_PROMPT,
         user_message=user_message,
-        max_tokens=80,
+        max_tokens=160,  # room for the trigger sentence
         temperature=0.8,  # variety over reproducibility -- see spec
         role="judgment",
     )
@@ -127,7 +130,12 @@ def classify_emotion(question: str, answer_text: str, used_emotions=()) -> dict:
     except (json.JSONDecodeError, KeyError, ValueError, TypeError):
         return dict(_FALLBACK)
 
-    return {"emotion": emotion, "intensity": max(intensity, MIN_INTENSITY)}
+    # What in the answer caused the reaction (2026-11-17 spec): graded against the
+    # participant's "why" later, never spoken. Dropped if it talks about delivery.
+    trigger = str(data.get("trigger") or "").strip()
+    if trigger and not guardrail.check_rationale(trigger).passed:
+        trigger = ""
+    return {"emotion": emotion, "intensity": max(intensity, MIN_INTENSITY), "trigger": trigger}
 
 
 def derive_valence(emotion: str) -> str:

@@ -148,3 +148,8 @@ def test_bridge_rejects_a_question(monkeypatch):
 def test_bridge_none_when_llm_fails(monkeypatch):
     monkeypatch.setattr(small_talk.llm_line, "request_line", lambda system, user_message: None)
     assert small_talk.bridge(HISTORY) is None
+
+
+def test_follow_up_prompt_allows_two_to_three_sentences():
+    from prompts.small_talk_prompt import FOLLOW_UP_SYSTEM_PROMPT
+    assert "2-3 sentences" in FOLLOW_UP_SYSTEM_PROMPT

@@ -51,7 +51,7 @@ FOLLOW_UP_SYSTEM_PROMPT = _PERSONA + """
 
 The candidate just answered. Decide whether to continue this part of the conversation.
 {phase_rule}
-- If you continue: write the robot's next line, which reacts to what they just said and asks one follow-up question.
+- If you continue: write the robot's next line, 2-3 sentences: a short reaction to what they just said, then one follow-up question.
 - If this topic has run its course, or they gave a short answer that does not invite more, do not continue. Then answer NONE, and the conversation moves on by itself.
 
 Respond with ONLY a JSON object: {{"follow_up": "<the robot's line, or NONE>"}}"""

@@ -9,7 +9,7 @@ def test_classify_emotion_parses_valid_llm_response(monkeypatch):
         lambda **k: '{"emotion": "FEAR", "intensity": 2}'
     )
     result = classify_emotion("Tell me about a challenge", "I was scared I'd miss the deadline.")
-    assert result == {"emotion": "FEAR", "intensity": 2}
+    assert result == {"emotion": "FEAR", "intensity": 2, "trigger": ""}
 
 
 def test_classify_emotion_strips_code_fences(monkeypatch):
@@ -18,7 +18,7 @@ def test_classify_emotion_strips_code_fences(monkeypatch):
         lambda **k: '```json\n{"emotion": "HAPPINESS", "intensity": 3}\n```'
     )
     result = classify_emotion("Q", "A")
-    assert result == {"emotion": "HAPPINESS", "intensity": 3}
+    assert result == {"emotion": "HAPPINESS", "intensity": 3, "trigger": ""}
 
 
 def test_classify_emotion_discards_cue_field_from_return_value(monkeypatch):
@@ -30,7 +30,7 @@ def test_classify_emotion_discards_cue_field_from_return_value(monkeypatch):
         lambda **k: '{"cue": "no complaints, flat factual tone", "emotion": "SURPRISE", "intensity": 2}'
     )
     result = classify_emotion("Tell me about yourself", "I have 5 years of experience in QA.")
-    assert result == {"emotion": "SURPRISE", "intensity": 2}
+    assert result == {"emotion": "SURPRISE", "intensity": 2, "trigger": ""}
     assert "cue" not in result
 
 
@@ -50,7 +50,7 @@ def test_classify_emotion_uses_higher_temperature_for_variety(monkeypatch):
 def test_classify_emotion_falls_back_on_non_json(monkeypatch):
     monkeypatch.setattr(emotion_classifier.llm_client, "call_llm", lambda **k: "not json at all")
     result = classify_emotion("Q", "A")
-    assert result == {"emotion": "SURPRISE", "intensity": 2}
+    assert result == {"emotion": "SURPRISE", "intensity": 2, "trigger": ""}
 
 
 def test_classify_emotion_falls_back_on_unknown_emotion(monkeypatch):
@@ -59,7 +59,7 @@ def test_classify_emotion_falls_back_on_unknown_emotion(monkeypatch):
         lambda **k: '{"emotion": "LOVE", "intensity": 2}'
     )
     result = classify_emotion("Q", "A")
-    assert result == {"emotion": "SURPRISE", "intensity": 2}
+    assert result == {"emotion": "SURPRISE", "intensity": 2, "trigger": ""}
 
 
 def test_classify_emotion_falls_back_on_out_of_range_intensity(monkeypatch):
@@ -68,7 +68,7 @@ def test_classify_emotion_falls_back_on_out_of_range_intensity(monkeypatch):
         lambda **k: '{"emotion": "SADNESS", "intensity": 7}'
     )
     result = classify_emotion("Q", "A")
-    assert result == {"emotion": "SURPRISE", "intensity": 2}
+    assert result == {"emotion": "SURPRISE", "intensity": 2, "trigger": ""}
 
 
 def test_classify_emotion_falls_back_on_missing_keys(monkeypatch):
@@ -77,7 +77,7 @@ def test_classify_emotion_falls_back_on_missing_keys(monkeypatch):
         lambda **k: '{"emotion": "SADNESS"}'
     )
     result = classify_emotion("Q", "A")
-    assert result == {"emotion": "SURPRISE", "intensity": 2}
+    assert result == {"emotion": "SURPRISE", "intensity": 2, "trigger": ""}
 
 
 def test_every_core_emotion_maps_to_a_valid_valence():
@@ -125,7 +125,7 @@ def test_intensity_1_is_raised_to_2(monkeypatch):
     """Reactions must be clearly visible: intensity is 2 or 3 only."""
     monkeypatch.setattr(emotion_classifier.llm_client, "call_llm",
                         lambda **k: '{"emotion": "SADNESS", "intensity": 1}')
-    assert classify_emotion("Q", "A") == {"emotion": "SADNESS", "intensity": 2}
+    assert classify_emotion("Q", "A") == {"emotion": "SADNESS", "intensity": 2, "trigger": ""}
 
 
 def test_prompt_asks_for_intensity_2_or_3_only(monkeypatch):
@@ -150,3 +150,29 @@ def test_no_used_emotions_no_list(monkeypatch):
                         lambda **k: captured.update(k) or '{"emotion": "FEAR", "intensity": 3}')
     classify_emotion("Q", "A")
     assert "Already shown" not in captured["user_message"]
+
+
+# ── trigger: what in the answer led to the emotion (2026-11-17 spec) ────────
+def test_classifier_returns_trigger(monkeypatch):
+    monkeypatch.setattr(emotion_classifier.llm_client, "call_llm",
+                        lambda **k: '{"cue": "alone", "emotion": "SURPRISE", "intensity": 2, '
+                                    '"trigger": "The candidate led a project alone as a junior."}')
+    assert classify_emotion("Q", "A")["trigger"] == "The candidate led a project alone as a junior."
+
+
+def test_classifier_fallback_has_empty_trigger(monkeypatch):
+    monkeypatch.setattr(emotion_classifier.llm_client, "call_llm", lambda **k: "not json")
+    assert classify_emotion("Q", "A")["trigger"] == ""
+
+
+def test_classifier_trigger_flagged_by_guardrail_is_dropped(monkeypatch):
+    monkeypatch.setattr(emotion_classifier.llm_client, "call_llm",
+                        lambda **k: '{"emotion": "BORED", "intensity": 2, '
+                                    '"trigger": "The candidate seemed nervous and gave a short answer."}')
+    result = classify_emotion("Q", "A")
+    assert result["emotion"] == "BORED" and result["trigger"] == ""
+
+
+def test_classifier_prompt_asks_for_a_content_trigger():
+    assert '"trigger"' in emotion_classifier._SYSTEM_PROMPT
+    assert "CONTENT" in emotion_classifier._SYSTEM_PROMPT

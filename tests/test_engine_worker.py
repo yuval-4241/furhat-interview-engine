@@ -39,6 +39,19 @@ def test_build_proposal_reply_comes_from_the_emotion_and_genders(monkeypatch):
     assert seen["args"] == ("SADNESS", 3, "he", "female", "male")
 
 
+def test_build_proposal_includes_emotion_trigger(monkeypatch):
+    class Ev:
+        category, confidence, rationale = "GOOD", 0.9, "Mentions the project."
+
+    monkeypatch.setattr(engine_worker.evaluator, "evaluate", lambda q, a: Ev)
+    monkeypatch.setattr(engine_worker.emotion_classifier, "classify_emotion",
+                        lambda q, a, used=(): {"emotion": "SURPRISE", "intensity": 2,
+                                               "trigger": "Led a project alone."})
+    monkeypatch.setattr(engine_worker.reaction_line, "generate", lambda *a: "באמת?")
+    assert engine_worker.build_proposal("Q", "A", "Live")["emotion_trigger"] == "Led a project alone."
+    assert engine_worker.build_proposal("Q", "A", "Mock")["emotion_trigger"] == ""
+
+
 def test_question_set_for_training_and_default():
     assert engine_worker.question_set_for("Training3") == 3
     assert engine_worker.question_set_for("Baseline") == 1

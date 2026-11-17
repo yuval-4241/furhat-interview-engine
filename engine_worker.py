@@ -120,7 +120,7 @@ def ensure_turns(session: dict) -> None:
 def build_proposal(question: str, answer: str, mode: str, used_emotions=(), language: str = "he",
                    participant_gender=None, robot_gender=None) -> dict:
     if mode == "Mock":
-        emotion, intensity = "HAPPINESS", 2
+        emotion, intensity, trigger = "HAPPINESS", 2, ""
         ev_fields = {"evaluation_category": "NEUTRAL", "evaluator_confidence": 1.0,
                      "engine_rationale": "Mock mode — no LLM call."}
         flag, reason = False, ""
@@ -129,6 +129,7 @@ def build_proposal(question: str, answer: str, mode: str, used_emotions=(), lang
         gr = guardrail.check_rationale(ev.rationale)
         reaction = emotion_classifier.classify_emotion(question, answer, used_emotions)
         emotion, intensity = reaction["emotion"], reaction["intensity"]
+        trigger = reaction.get("trigger", "")
         ev_fields = {"evaluation_category": ev.category, "evaluator_confidence": ev.confidence,
                      "engine_rationale": ev.rationale}
         flag = not gr.passed
@@ -145,6 +146,7 @@ def build_proposal(question: str, answer: str, mode: str, used_emotions=(), lang
         **ev_fields,
         "target_emotion": emotion,
         "intensity": intensity,
+        "emotion_trigger": trigger,  # what in the answer caused it; the PE reason is graded against it
         "valence": _app_level(valence),
         "arousal": _app_level(arousal),
         "proposed_reply": reply,

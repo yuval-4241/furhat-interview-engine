@@ -34,3 +34,15 @@ def test_llm_failure_falls_back_without_flag(monkeypatch):
     ack = acknowledgement.acknowledge("Q", "A")
 
     assert ack == {"line": "תודה, נמשיך.", "guardrail_flag": False, "guardrail_reason": ""}
+
+
+def test_acknowledgement_prompt_asks_for_two_to_three_sentences():
+    from prompts.acknowledgement_prompt import ACKNOWLEDGEMENT_SYSTEM_PROMPT
+    assert "2-3 sentences" in ACKNOWLEDGEMENT_SYSTEM_PROMPT
+    assert "ONE short sentence" not in ACKNOWLEDGEMENT_SYSTEM_PROMPT
+
+
+def test_multi_sentence_ack_is_kept_whole(monkeypatch):
+    line = "אז בנית את המערכת כמעט לבד. זה נשמע כמו תקופה עמוסה. נמשיך."
+    monkeypatch.setattr(acknowledgement.llm_line, "request_line", lambda system, user_message: line)
+    assert acknowledgement.acknowledge("Q", "A")["line"] == line
