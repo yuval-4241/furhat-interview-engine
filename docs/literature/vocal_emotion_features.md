@@ -222,6 +222,13 @@ recognised poorly there. **To verify against [1]'s tables before use.**
    (Gemini-TTS, needs Vertex AI access) if it turns out to matter.
    First-draft profiles and samples: `~/Desktop/emotion_voice_samples/`
    (`profiles.json`), for the researcher to listen to.
+   **Researcher decision (2026-11-17), after listening:** pitch shifts of
+   +/-2-5 semitones made the voice sound like a different person, which
+   people don't do. v2 profiles (`v2_rate_led/profiles_v2.json`) keep pitch
+   within +/-1 semitone (sentence end included) and let **tempo** carry the
+   emotion (65% sleepy ... 130% fear/excited), loudness as before. Charon
+   (male) didn't sound good; the 16 male Chirp 3 HD voices were rendered for
+   a new choice (`male_voices/`).
 5. **Methodology:** adding the voice channel changes what the participant
    judges in the PE question (face + voice + text instead of face + text).
    That is a design decision to agree before data collection.
