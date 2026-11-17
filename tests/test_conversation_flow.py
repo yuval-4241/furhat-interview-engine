@@ -801,3 +801,53 @@ def test_debrief_silence_after_follow_up_still_closes_and_extracts(fake, monkeyp
     saved = fake.get("Turn", t["id"])
     assert saved["status"] == "done" and saved["debrief_moments"] == [{"turn_order": 3}]
     assert robot.said()[-1] == "יאללה, נתראה!"
+
+
+def test_debrief_retry_after_failed_extraction_does_not_replay(fake, monkeypatch, friend):
+    """Final review #1: goodbye said, extraction fails twice -> engine_error; the researcher's
+    Retry must only re-run the extraction: no second goodbye, no new follow-up, no duplicate answer."""
+    s = live_session(fake)
+    t = debrief_turn(fake, s)
+    monkeypatch.setattr(flow.debrief, "follow_up", lambda *a, **k: None)
+
+    def boom(story, turns):
+        raise TimeoutError("LLM down")
+
+    monkeypatch.setattr(flow.debrief, "extract_moments", boom)
+    robot = use_robot(monkeypatch, FakeRobot(heard=[heard("סיפרתי על הפרויקט")]))
+    run(fake, s, t)
+    assert "LLM down" in fake.get("Turn", t["id"])["engine_error"]
+    log_before = fake.get("Turn", t["id"])["small_talk_log"]
+
+    fake.update_record("Turn", t["id"], {"engine_error": ""})  # the researcher's Retry
+    stories = []
+    monkeypatch.setattr(flow.debrief, "extract_moments", lambda story, turns: stories.append(story) or [])
+    monkeypatch.setattr(flow.debrief, "follow_up", lambda *a, **k: pytest.fail("no new question after the goodbye"))
+    run(fake, s, t)
+    saved = fake.get("Turn", t["id"])
+    assert robot.said().count("יאללה, נתראה!") == 1
+    assert saved["small_talk_log"] == log_before
+    assert stories == [log_before] and saved["status"] == "done"
+
+
+def test_debrief_retry_after_silence_close_does_not_listen_again(fake, monkeypatch, friend):
+    s = live_session(fake)
+    t = debrief_turn(fake, s)
+    monkeypatch.setattr(flow.debrief, "follow_up", lambda *a, **k: "ומה קרה אז?")
+
+    def boom(story, turns):
+        raise TimeoutError("LLM down")
+
+    monkeypatch.setattr(flow.debrief, "extract_moments", boom)
+    robot = use_robot(monkeypatch, FakeRobot(heard=[heard("סיפרתי על הפרויקט")]))  # then silence
+    for _ in range(4):
+        if fake.get("Turn", t["id"]).get("engine_error"):
+            break
+        run(fake, s, t)
+    fake.update_record("Turn", t["id"], {"engine_error": ""})
+    listens = len([c for c in robot.calls if c[0] == "listen"])
+    monkeypatch.setattr(flow.debrief, "extract_moments", lambda story, turns: [])
+    run(fake, s, t)
+    assert len([c for c in robot.calls if c[0] == "listen"]) == listens  # no new listen
+    assert robot.said().count("יאללה, נתראה!") == 1
+    assert fake.get("Turn", t["id"])["status"] == "done"

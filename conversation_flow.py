@@ -266,6 +266,8 @@ def _speak_debrief_opener(turn, session):
 def _debrief_reply(turn, session, turns):
     """After the candidate told something: one more open question (at most
     DEBRIEF_MAX_FOLLOW_UPS), or close the debrief."""
+    if _debrief_closed(turn):
+        return _finish_debrief(turn, session, turns, turn["small_talk_log"])
     convo = _small_talk_log(turn) + [{"speaker": "participant", "text": turn["participant_answer"]}]
     follow_ups = sum(1 for line in convo if line["speaker"] == "robot") - 1
     line = None
@@ -278,12 +280,24 @@ def _debrief_reply(turn, session, turns):
     return _finish_debrief(turn, session, turns, convo)
 
 
+def _debrief_closed(turn: dict) -> bool:
+    """The friend already said goodbye (only the extraction may be left: a Retry re-runs just that)."""
+    log_ = turn.get("small_talk_log") or []
+    return bool(log_) and bool(log_[-1].get("goodbye"))
+
+
 def _finish_debrief(turn, session, turns, convo):
-    """Goodbye, then the moments the candidate told, matched to turns and graded."""
-    bye = debrief.goodbye(convo, session.get("language", "he"), session.get("participant_gender"), _friend_gender())
-    _say(bye, session)
-    convo = convo + [{"speaker": "robot", "text": bye}]
-    turn = _update(turn, small_talk_log=convo)
+    """Goodbye, then the moments the candidate told, matched to turns and graded. The goodbye
+    is saved (marked) before the extraction, so a Retry after a failed extraction only
+    extracts again: no second goodbye, no new question, the same story."""
+    if _debrief_closed(turn):
+        convo = turn["small_talk_log"]
+    else:
+        bye = debrief.goodbye(convo, session.get("language", "he"), session.get("participant_gender"),
+                              _friend_gender())
+        convo = convo + [{"speaker": "robot", "text": bye, "goodbye": True}]
+        turn = _update(turn, small_talk_log=convo)
+        _say(bye, session)
     try:
         moments = _with_one_retry(lambda: debrief.extract_moments(convo, turns))
     except Exception as e:
@@ -295,6 +309,8 @@ def _finish_debrief(turn, session, turns, convo):
 
 def _listen_answer(turn, session, turns, propose):
     """listening: the participant's answer."""
+    if turn.get("phase") == "Debrief" and _debrief_closed(turn):  # Retry after a failed extraction
+        return _finish_debrief(turn, session, turns, turn["small_talk_log"])
     key = (turn["id"], "answer")
     if key in _heard:  # a retry after a failed save: don't ask the participant again
         text, skip_reason = _heard[key], None
