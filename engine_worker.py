@@ -242,11 +242,24 @@ def check_pe(turn: dict, session: dict) -> None:
 
 # ── Persona ─────────────────────────────────────────────────────────────────
 
+def _debrief_started(session: dict) -> bool:
+    """The session's friend debrief has begun (its opener was generated or it moved past queued)."""
+    turns = b44.list_records("Turn", {"session": session["id"], "phase": "Debrief"}, limit=5)
+    return any(t.get("question_text") or t.get("status") not in ("queued", "awaiting_answer") for t in turns)
+
+
 def apply_persona(session: dict, robot_connected: bool) -> None:
     """Send the session's Persona face + voice to the robot, once per session.
 
     Not marked applied while the robot is unreachable, so it is retried on a later poll."""
     if session.get("mode") != "Live" or session["id"] in _personas_applied or not robot_connected:
+        return
+    if _debrief_started(session) and (config.FRIEND_FACE or config.FRIEND_VOICE):
+        # Once the friend appeared the robot never switches back (2026-11-17 spec): after a
+        # restart or a robot reconnect, re-send the friend, not the interviewer.
+        result = furhat_client.set_persona(config.FRIEND_FACE, config.FRIEND_VOICE, session.get("language"))
+        if result["sent"] or result.get("bridge_error"):
+            _personas_applied.add(session["id"])
         return
     persona = {}
     if session.get("persona"):

@@ -232,6 +232,42 @@ def test_apply_persona_once_per_session(fake, monkeypatch):
     assert calls == [("Isabel", "Asaf", "he")]
 
 
+def test_apply_persona_keeps_the_friend_once_the_debrief_started(fake, monkeypatch):
+    """Final review #2: after a restart/reconnect mid-debrief the robot must keep the friend's
+    face, never switch back to the interviewer (2026-11-17 spec)."""
+    persona = fake.add("Persona", furhat_face="Isabel", furhat_voice="Asaf")
+    session = fake.add("Session", status="Running", mode="Live", language="he", persona=persona["id"])
+    fake.add("Turn", session=session["id"], order=20, phase="Debrief", status="listening",
+             question_text="היי! איך היה?")
+    calls = []
+    monkeypatch.setattr(engine_worker, "_personas_applied", set())
+    monkeypatch.setattr(engine_worker.config, "FRIEND_FACE", "FriendFace")
+    monkeypatch.setattr(engine_worker.config, "FRIEND_VOICE", "FriendVoice")
+    monkeypatch.setattr(engine_worker.furhat_client, "set_persona",
+                        lambda character, voice, language: calls.append((character, voice))
+                        or {"sent": True, "reason": None})
+
+    engine_worker.apply_persona(session, True)
+
+    assert calls == [("FriendFace", "FriendVoice")]
+
+
+def test_apply_persona_uses_the_interviewer_before_the_debrief(fake, monkeypatch):
+    persona = fake.add("Persona", furhat_face="Isabel", furhat_voice="Asaf")
+    session = fake.add("Session", status="Running", mode="Live", language="he", persona=persona["id"])
+    fake.add("Turn", session=session["id"], order=20, phase="Debrief", status="queued", question_text="")
+    calls = []
+    monkeypatch.setattr(engine_worker, "_personas_applied", set())
+    monkeypatch.setattr(engine_worker.config, "FRIEND_FACE", "FriendFace")
+    monkeypatch.setattr(engine_worker.furhat_client, "set_persona",
+                        lambda character, voice, language: calls.append((character, voice))
+                        or {"sent": True, "reason": None})
+
+    engine_worker.apply_persona(session, True)
+
+    assert calls == [("Isabel", "Asaf")]
+
+
 def test_apply_persona_skips_non_live(fake, monkeypatch):
     session = fake.add("Session", status="Running", mode="Simulation", persona="p1")
     monkeypatch.setattr(engine_worker, "_personas_applied", set())
