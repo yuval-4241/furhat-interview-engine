@@ -620,3 +620,82 @@ def test_unexpected_status_sets_engine_error(fake, monkeypatch):
     assert run(fake, s, t) is False
 
     assert fake.get("Turn", t["id"])["engine_error"] == "unexpected status: awaiting_pe"
+
+
+# ── Scripted opening (2026-11-17 spec): generated bridge + fixed question ──────
+SCRIPT_1 = "שלום, נעים מאוד. מה שלומך?"
+SCRIPT_2 = "תוכל/י לספר לי בכמה מילים על עצמך?"
+SCRIPT_2_SAID = "תוכל לספר לי בכמה מילים על עצמך?"  # gender unknown -> masculine form
+
+
+def scripted_openings(store, session, texts=(SCRIPT_1, SCRIPT_2)):
+    return [store.add("Turn", session=session["id"], order=i, phase="Opening", generated_by_engine=False,
+                      question=f"o{i}", expects_answer=True, status="queued", question_text=text)
+            for i, text in enumerate(texts, start=1)]
+
+
+def test_scripted_opening_first_turn_says_question_only(fake, monkeypatch):
+    s = live_session(fake)
+    t, _ = scripted_openings(fake, s)
+    monkeypatch.setattr(flow.small_talk, "bridge", lambda *a, **k: pytest.fail("no bridge on the first line"))
+    robot = use_robot(monkeypatch, FakeRobot(heard=[heard("טוב, תודה")]))
+    run(fake, s, t)
+    assert robot.calls[0] == ("say", SCRIPT_1)
+
+
+def test_scripted_opening_later_turn_says_bridge_then_question(fake, monkeypatch):
+    s = live_session(fake)
+    first, second = scripted_openings(fake, s)
+    fake.update_record("Turn", first["id"], {"status": "done", "participant_answer": "היו פקקים"})
+    monkeypatch.setattr(flow.small_talk, "bridge", lambda *a, **k: "פקקים זה מתיש.")
+    robot = use_robot(monkeypatch, FakeRobot(heard=[heard("אני מהנדסת")]))
+    run(fake, s, second)
+    line = "פקקים זה מתיש. " + SCRIPT_2_SAID
+    assert robot.calls[0] == ("say", line)
+    assert fake.get("Turn", second["id"])["small_talk_log"][0] == {"speaker": "robot", "text": line}
+
+
+def test_scripted_opening_bridge_failure_says_question_only(fake, monkeypatch):
+    s = live_session(fake)
+    first, second = scripted_openings(fake, s)
+    fake.update_record("Turn", first["id"], {"status": "done", "participant_answer": "היו פקקים"})
+    monkeypatch.setattr(flow.small_talk, "bridge", lambda *a, **k: None)
+    robot = use_robot(monkeypatch, FakeRobot(heard=[heard("אני מהנדסת")]))
+    run(fake, s, second)
+    assert robot.calls[0] == ("say", SCRIPT_2_SAID)
+
+
+def test_scripted_opening_rerun_reuses_spoken_line(fake, monkeypatch):
+    s = live_session(fake)
+    first, second = scripted_openings(fake, s)
+    fake.update_record("Turn", first["id"], {"status": "done", "participant_answer": "היו פקקים"})
+    spoken = "שמחה שהגעת. " + SCRIPT_2_SAID
+    fake.update_record("Turn", second["id"], {"status": "robot_speaking", "claimed_by": flow.WORKER_ID,
+                                              "small_talk_log": [{"speaker": "robot", "text": spoken}]})
+    monkeypatch.setattr(flow.small_talk, "bridge", lambda *a, **k: pytest.fail("must reuse the spoken line"))
+    robot = use_robot(monkeypatch, FakeRobot(heard=[heard("אני מהנדסת")]))
+    run(fake, s, second)
+    assert robot.calls[0] == ("say", spoken)
+
+
+def test_scripted_opening_answer_goes_to_small_talk_not_ack(fake, monkeypatch):
+    s = live_session(fake)
+    (t,) = scripted_openings(fake, s, texts=(SCRIPT_1,))  # also the last opening turn
+    monkeypatch.setattr(flow.acknowledgement, "acknowledge", lambda *a, **k: pytest.fail("no acknowledgement"))
+    asked = []
+    monkeypatch.setattr(flow.small_talk, "follow_up", lambda *a, **k: asked.append(1) or None)
+    use_robot(monkeypatch, FakeRobot(heard=[heard("טוב, תודה")]))
+    run(fake, s, t)
+    assert asked == [1]
+    saved = fake.get("Turn", t["id"])
+    assert saved["status"] == "done"
+    assert saved["small_talk_log"][-1] == {"speaker": "participant", "text": "טוב, תודה"}
+
+
+def test_unscripted_opening_unchanged(fake, monkeypatch):
+    s = live_session(fake)
+    t, _ = opening_turns(fake, s)
+    monkeypatch.setattr(flow.small_talk, "bridge", lambda *a, **k: pytest.fail("no bridge for generated lines"))
+    robot = use_robot(monkeypatch, FakeRobot(heard=[heard("טוב")]))
+    run(fake, s, t)
+    assert robot.calls[0] == ("say", "Opening 1/2")

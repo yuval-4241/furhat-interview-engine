@@ -14,7 +14,7 @@ and the conversation moves on (researcher decision 2026-11-14).
 
 import guardrail
 import llm_line
-from prompts.small_talk_prompt import (FALLBACK_LINES, FOLLOW_UP_SYSTEM_PROMPT, NAME_RULE, PHASE_RULES, ROLES,
+from prompts.small_talk_prompt import (BRIDGE_SYSTEM_PROMPT, FALLBACK_LINES, FOLLOW_UP_SYSTEM_PROMPT, NAME_RULE, PHASE_RULES, ROLES,
                                        SMALL_TALK_SYSTEM_PROMPT)
 
 _SPEAKER_NAMES = {"robot": "Robot", "participant": "Candidate"}
@@ -71,5 +71,17 @@ def follow_up(phase: str, history: list, language: str = "he", participant_gende
     data = llm_line.request_json(system, format_history(history), ("follow_up",))
     line = data["follow_up"] if data else ""
     if not line or line.strip(" .").upper() == "NONE" or not guardrail.check_rationale(line).passed:
+        return None
+    return line
+
+
+def bridge(history: list, language: str = "he", participant_gender=None, robot_gender=None,
+           participant_name=None):
+    """A short reaction before a scripted opening line, or None (LLM failure, a guardrail
+    flag, or a line that asks a question: the script supplies the question)."""
+    lang = llm_line.language_or_default(language)
+    system = BRIDGE_SYSTEM_PROMPT.format(**_common_rules(lang, participant_gender, robot_gender, participant_name))
+    line = llm_line.request_line(system, format_history(history))
+    if not line or "?" in line or not guardrail.check_rationale(line).passed:
         return None
     return line

@@ -126,3 +126,25 @@ def test_small_talk_prompt_aims_to_reduce_stress():
     from prompts.small_talk_prompt import SMALL_TALK_SYSTEM_PROMPT
     assert "feel at ease" in SMALL_TALK_SYSTEM_PROMPT
     assert "follow-up" in SMALL_TALK_SYSTEM_PROMPT
+
+
+# ── bridge: the reaction before a scripted opening line ──────────────────────
+def test_bridge_returns_the_line(monkeypatch):
+    monkeypatch.setattr(small_talk.llm_line, "request_line", lambda system, user_message: "פקקים זה מתיש.")
+    assert small_talk.bridge(HISTORY) == "פקקים זה מתיש."
+
+
+def test_bridge_returns_none_when_guardrail_flags(monkeypatch):
+    monkeypatch.setattr(small_talk.llm_line, "request_line",
+                        lambda system, user_message: "You seemed nervous, but welcome.")
+    assert small_talk.bridge(HISTORY, "en") is None
+
+
+def test_bridge_rejects_a_question(monkeypatch):
+    monkeypatch.setattr(small_talk.llm_line, "request_line", lambda system, user_message: "איך הייתה הדרך?")
+    assert small_talk.bridge(HISTORY) is None
+
+
+def test_bridge_none_when_llm_fails(monkeypatch):
+    monkeypatch.setattr(small_talk.llm_line, "request_line", lambda system, user_message: None)
+    assert small_talk.bridge(HISTORY) is None

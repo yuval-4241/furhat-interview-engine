@@ -195,6 +195,8 @@ def _speak(turn, session, turns, propose):
     if turn.get("participant_answer"):
         _say(turn["robot_line"], session)
         return _update(turn, status="done", done_at=now())
+    if _is_scripted_opening(turn):
+        return _speak_scripted(turn, session, turns)
     if turn.get("generated_by_engine") and not turn.get("question_text"):
         position, total = _position(turn, turns)
         line = small_talk.generate_line(turn.get("phase"), position, total, turn.get("expects_answer") is not False,
@@ -205,6 +207,34 @@ def _speak(turn, session, turns, propose):
     _say(_question_to_say(turn, session), session)
     if turn.get("expects_answer") is False:
         return _update(turn, status="done", done_at=now())
+    return _update(turn, status="listening")
+
+
+def _is_scripted_opening(turn: dict) -> bool:
+    """A line of the fixed opening script (website plan, 2026-11-17): said word for word."""
+    return (turn.get("phase") == "Opening" and not turn.get("generated_by_engine")
+            and bool(turn.get("question_text")))
+
+
+def _speak_scripted(turn, session, turns):
+    """A scripted opening line: a short generated reaction to the last answer (not on the
+    first line), then the script question word for word. The line is saved before it is
+    said, so a re-run says the same words again."""
+    log_ = turn.get("small_talk_log") or []
+    if log_ and log_[0]["speaker"] == "robot":
+        line = log_[0]["text"]
+    else:
+        question = _question_to_say(turn, session)
+        position, _ = _position(turn, turns)
+        reaction = None
+        if position > 1:
+            reaction = small_talk.bridge(dialogue_history(turns, turn), session.get("language", "he"),
+                                         session.get("participant_gender"), session.get("robot_gender"),
+                                         session.get("participant_name"))
+        line = f"{reaction} {question}" if reaction else question
+        turn = _update(turn, small_talk_log=[{"speaker": "robot", "text": line}],
+                       engine_model=llm_client.current_model("lines"))
+    _say(line, session)
     return _update(turn, status="listening")
 
 
@@ -245,7 +275,7 @@ def _process(turn, session, turns, propose):
     proposal for approval, or a content-only acknowledgement)."""
     if turn.get("participant_pe_answer"):
         return _grade_pe(turn, session)
-    if turn.get("generated_by_engine"):
+    if turn.get("generated_by_engine") or _is_scripted_opening(turn):
         return _small_talk_reply(turn, session, turns)
     if turn.get("category") == PBDI_CATEGORY:
         return _propose(turn, session, propose, _emotions_shown(turns, turn))
@@ -268,8 +298,9 @@ def _small_talk_reply(turn, session, turns):
     convo = _small_talk_log(turn) + [{"speaker": "participant", "text": turn["participant_answer"]}]
     position, total = _position(turn, turns)
     follow_ups = sum(1 for line in convo if line["speaker"] == "robot") - 1
-    may_continue = (follow_ups < config.SMALL_TALK_MAX_FOLLOW_UPS
-                    and not (turn.get("phase") == "Opening" and position == total))  # "ready to start?"
+    ready_to_start = (turn.get("phase") == "Opening" and position == total  # the generated "ready to start?"
+                      and not _is_scripted_opening(turn))
+    may_continue = follow_ups < config.SMALL_TALK_MAX_FOLLOW_UPS and not ready_to_start
     line = None
     if may_continue:
         line = small_talk.follow_up(turn.get("phase"), dialogue_history(turns, turn) + convo,

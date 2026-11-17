@@ -33,6 +33,18 @@ This line's job: {role}
 
 Respond with ONLY a JSON object: {{"line": "<the robot's line>"}}"""
 
+# Before a line of the fixed opening script (2026-11-17 spec): a short reaction
+# to what the candidate just said. The script question itself comes right after,
+# word for word, so this line must not ask anything.
+BRIDGE_SYSTEM_PROMPT = _PERSONA + """
+
+The next thing you say is a fixed question from the interview script; it is added after your line automatically.
+Write ONLY a short reaction (1-2 short sentences) to the CONTENT of what the candidate just said, so the conversation flows naturally into that question.
+- Do not ask any question.
+- Do not praise or rate what they said, and do not comment on how they said it.
+
+Respond with ONLY a JSON object: {{"line": "<the robot's reaction>"}}"""
+
 # After each small-talk answer: keep this thread going, or move on. The
 # Engine caps follow-ups per turn (config.SMALL_TALK_MAX_FOLLOW_UPS).
 FOLLOW_UP_SYSTEM_PROMPT = _PERSONA + """
