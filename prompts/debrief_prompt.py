@@ -43,15 +43,19 @@ Respond with ONLY a JSON object: {{"line": "<your line>"}}"""
 FALLBACK_LINES = {
     "he": {
         "male": {"opener": "היי! איך היה הראיון? איך המראיין הגיב למה שסיפרת לו?",
-                 "goodbye": "תודה שסיפרת לי. יאללה, נתראה!"},
+                 "goodbye": "תודה שסיפרת לי. יאללה, נתראה!",
+                 "follow_up": "ומה קרה אחר כך?"},
         "female": {"opener": "היי! איך היה הראיון? איך המראיין הגיב למה שסיפרת לו?",
-                   "goodbye": "תודה שסיפרת לי. יאללה, נתראה!"},
+                   "goodbye": "תודה שסיפרת לי. יאללה, נתראה!",
+                 "follow_up": "ומה קרה אחר כך?"},
         "neutral": {"opener": "היי! איך היה הראיון? איך המראיין הגיב למה שסיפרת לו?",
-                    "goodbye": "תודה שסיפרת לי. יאללה, נתראה!"},
+                    "goodbye": "תודה שסיפרת לי. יאללה, נתראה!",
+                 "follow_up": "ומה קרה אחר כך?"},
     },
     "en": {
         "neutral": {"opener": "Hi! How did the interview go? How did the interviewer respond to what you told him?",
-                    "goodbye": "Thanks for telling me. See you soon!"},
+                    "goodbye": "Thanks for telling me. See you soon!",
+                    "follow_up": "And what happened next?"},
     },
 }
 

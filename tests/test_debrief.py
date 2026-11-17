@@ -26,14 +26,14 @@ def test_opener_returns_a_clean_line(monkeypatch):
     assert debrief.opener("he") == "היי! איך היה הראיון?"
 
 
-def test_follow_up_none_on_NONE_or_flag(monkeypatch):
+def test_follow_up_none_on_NONE_or_failure_fallback_on_flag(monkeypatch):
     history = [{"speaker": "robot", "text": "איך היה?"}, {"speaker": "participant", "text": "היה בסדר"}]
     monkeypatch.setattr(debrief.llm_line, "request_json", lambda *a, **k: {"follow_up": "NONE"})
     assert debrief.follow_up(history) is None
-    monkeypatch.setattr(debrief.llm_line, "request_json", lambda *a, **k: {"follow_up": "You seemed nervous, then?"})
-    assert debrief.follow_up(history, "en") is None
-    monkeypatch.setattr(debrief.llm_line, "request_json", lambda *a, **k: {"follow_up": "והוא כעס?"})
+    monkeypatch.setattr(debrief.llm_line, "request_json", lambda *a, **k: None)  # LLM failure
     assert debrief.follow_up(history) is None
+    monkeypatch.setattr(debrief.llm_line, "request_json", lambda *a, **k: {"follow_up": "You seemed nervous, then?"})
+    assert debrief.follow_up(history, "en") == debrief_prompt.FALLBACK_LINES["en"]["neutral"]["follow_up"]
 
 
 def test_follow_up_returns_an_open_question(monkeypatch):
@@ -79,3 +79,22 @@ def test_extract_moments_empty_story_returns_empty_list(monkeypatch):
 def test_extract_moments_unparseable_reply_returns_empty_list(monkeypatch):
     monkeypatch.setattr(debrief.llm_client, "call_llm", lambda **k: "not json")
     assert debrief.extract_moments(STORY, TURNS) == []
+
+
+# ── final review #3: whole words only, and a filtered follow-up falls back ────
+@pytest.mark.parametrize("line", ["ומה קרה בזמן שסיפרת על הפרויקט?", "בזכות מה התקבלת?",
+                                  "ומה הוא שאל אחרי זה?"])
+def test_ordinary_words_are_not_emotions(line):
+    assert not debrief.mentions_emotion(line)
+
+
+@pytest.mark.parametrize("line", ["והוא כעס?", "הוא היה מופתע?", "Was he angry?", "he looked bored",
+                                  "ונראה שהוא שמח"])
+def test_emotion_words_with_prefixes_still_caught(line):
+    assert debrief.mentions_emotion(line)
+
+
+def test_filtered_follow_up_falls_back_to_an_open_question(monkeypatch):
+    history = [{"speaker": "robot", "text": "איך היה?"}, {"speaker": "participant", "text": "סיפרתי על הפרויקט"}]
+    monkeypatch.setattr(debrief.llm_line, "request_json", lambda *a, **k: {"follow_up": "והוא כעס?"})
+    assert debrief.follow_up(history) == debrief_prompt.FALLBACK_LINES["he"]["neutral"]["follow_up"]

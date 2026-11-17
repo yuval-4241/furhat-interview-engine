@@ -25,8 +25,11 @@ from prompts.debrief_prompt import (EXTRACT_SYSTEM_PROMPT, FALLBACK_LINES, FOLLO
                                     GOODBYE_SYSTEM_PROMPT, OPENER_SYSTEM_PROMPT)
 from prompts.pe_check_prompt import HEBREW_NAMES, WORD_LISTS
 
-_ENGLISH_WORDS = ("anger", "angry", "contempt", "disgust", "fear", "afraid", "scared", "happy", "happiness",
-                  "sad", "surprise", "excited", "bored", "sleepy", "calm", "upset", "worried", "nervous")
+_ENGLISH_WORDS = ("anger", "angry", "contempt", "contemptuous", "disgust", "disgusted", "fear", "afraid",
+                  "scared", "frightened", "happy", "happiness", "glad", "sad", "sadness", "surprise", "surprised",
+                  "excited", "bored", "sleepy", "tired", "calm", "upset", "worried", "nervous")
+# One-letter Hebrew prefixes (and, the, that, as, to, in, from), possibly stacked: "ושה...".
+_HEBREW_PREFIXES = "והשכלבמ"
 
 
 def _emotion_words() -> set:
@@ -39,12 +42,32 @@ def _emotion_words() -> set:
 
 
 EMOTION_WORDS = _emotion_words()
+_SINGLE = {w for w in EMOTION_WORDS if " " not in w}
+_PHRASES = {w for w in EMOTION_WORDS if " " in w}
+
+
+def _tokens(line: str) -> list:
+    return re.findall(r"[\w']+", line.lower())
+
+
+def _word_forms(token: str):
+    """The token and the token with up to two Hebrew one-letter prefixes removed."""
+    yield token
+    for _ in range(2):
+        if len(token) > 2 and token[0] in _HEBREW_PREFIXES:
+            token = token[1:]
+            yield token
 
 
 def mentions_emotion(line: str) -> bool:
-    """True if the line names a feeling (Hebrew word lists of the PE check, or English names)."""
-    text = line.lower()
-    return any(word in text for word in EMOTION_WORDS)
+    """True if the line names a feeling (the PE check's Hebrew word lists, or English names).
+    Whole words only, so "בזמן" ("during") is not "בז" ("contempt"); Hebrew prefixes are
+    stripped, so "והוא כעס" and "ושמח" still count (final review #3)."""
+    tokens = _tokens(line)
+    if any(form in _SINGLE for token in tokens for form in _word_forms(token)):
+        return True
+    joined = " " + " ".join(tokens) + " "
+    return any(f" {phrase} " in joined for phrase in _PHRASES)
 
 
 def _rules(language, participant_gender, friend_gender) -> tuple:
@@ -83,12 +106,15 @@ def goodbye(history=(), language: str = "he", participant_gender=None, friend_ge
 
 
 def follow_up(history: list, language: str = "he", participant_gender=None, friend_gender=None):
-    """The friend's next open question, or None to close (also on failure or a filtered line)."""
+    """The friend's next open question, a fixed open one if the generated line was filtered,
+    or None to close (NONE or an LLM failure)."""
     _, rules = _rules(language, participant_gender, friend_gender)
     data = llm_line.request_json(FOLLOW_UP_SYSTEM_PROMPT.format(**rules), _format(history), ("follow_up",))
     line = data["follow_up"] if data else ""
-    if not line or line.strip(" .").upper() == "NONE" or not _clean(line):
+    if not line or line.strip(" .").upper() == "NONE":
         return None
+    if not _clean(line):  # a filtered question: ask a fixed open one instead of ending the story
+        return _fallback(llm_line.language_or_default(language), participant_gender, "follow_up")
     return line
 
 
