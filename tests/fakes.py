@@ -95,5 +95,9 @@ class FakeRobot:
     def health_check(self):
         return self.connected
 
+    def set_persona(self, character=None, voice=None, language=None):
+        self.calls.append(("persona", character, voice))
+        return {**self._sent(), "bridge_error": False}
+
     def said(self):
         return [c[1] for c in self.calls if c[0] == "say"]

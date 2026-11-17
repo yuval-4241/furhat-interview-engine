@@ -722,3 +722,82 @@ def test_pe_grade_saves_reason_fields(fake, monkeypatch):
 
 def test_pe_question_is_friend_toned():
     assert flow.PE_QUESTION == "שמת לב איך הגבתי? מה לדעתך עבר עליי?"
+
+
+# ── Friend debrief (2026-11-17 spec) ─────────────────────────────────────────
+def debrief_turn(store, session, order=20):
+    return store.add("Turn", session=session["id"], order=order, phase="Debrief", generated_by_engine=True,
+                     expects_answer=True, status="queued", question_text="")
+
+
+@pytest.fixture
+def friend(monkeypatch):
+    monkeypatch.setattr(flow.config, "FRIEND_FACE", "FriendFace")
+    monkeypatch.setattr(flow.config, "FRIEND_VOICE", "he-IL-Chirp3-HD-Aoede")
+    monkeypatch.setattr(flow.debrief, "opener", lambda *a, **k: "היי! איך היה הראיון?")
+    monkeypatch.setattr(flow.debrief, "goodbye", lambda *a, **k: "יאללה, נתראה!")
+    monkeypatch.setattr(flow.debrief, "extract_moments", lambda story, turns: [{"turn_order": 3}])
+
+
+def test_debrief_switches_to_friend_then_asks(fake, monkeypatch, friend):
+    s = live_session(fake)
+    t = debrief_turn(fake, s)
+    monkeypatch.setattr(flow.debrief, "follow_up", lambda *a, **k: None)
+    robot = use_robot(monkeypatch, FakeRobot(heard=[heard("היה בסדר")]))
+    run(fake, s, t)
+    assert robot.calls[0] == ("persona", "FriendFace", "he-IL-Chirp3-HD-Aoede")
+    assert robot.calls[1] == ("say", "היי! איך היה הראיון?")
+
+
+def test_debrief_without_friend_config_still_runs(fake, monkeypatch, friend):
+    monkeypatch.setattr(flow.config, "FRIEND_FACE", "")
+    monkeypatch.setattr(flow.config, "FRIEND_VOICE", "")
+    s = live_session(fake)
+    t = debrief_turn(fake, s)
+    monkeypatch.setattr(flow.debrief, "follow_up", lambda *a, **k: None)
+    robot = use_robot(monkeypatch, FakeRobot(heard=[heard("היה בסדר")]))
+    run(fake, s, t)
+    assert not [c for c in robot.calls if c[0] == "persona"]
+    assert robot.calls[0] == ("say", "היי! איך היה הראיון?")
+    assert fake.get("Turn", t["id"])["status"] == "done"
+
+
+def test_debrief_follow_ups_capped_at_two(fake, monkeypatch, friend):
+    s = live_session(fake)
+    t = debrief_turn(fake, s)
+    monkeypatch.setattr(flow.debrief, "follow_up", lambda *a, **k: "ומה קרה אז?")
+    robot = use_robot(monkeypatch, FakeRobot(heard=[heard("סיפרתי על הפרויקט"), heard("הוא שאל עוד"),
+                                                   heard("ואז נגמר")]))
+    for _ in range(4):
+        if fake.get("Turn", t["id"])["status"] == "done":
+            break
+        run(fake, s, t)
+    saved = fake.get("Turn", t["id"])
+    assert robot.said().count("ומה קרה אז?") == 2
+    assert robot.said()[-1] == "יאללה, נתראה!"
+    assert saved["debrief_moments"] == [{"turn_order": 3}]
+    assert saved["status"] == "done"
+
+
+def test_debrief_silence_skips_without_extraction(fake, monkeypatch, friend):
+    s = live_session(fake)
+    t = debrief_turn(fake, s)
+    monkeypatch.setattr(flow.debrief, "extract_moments", lambda *a: pytest.fail("nothing to extract"))
+    use_robot(monkeypatch, FakeRobot(heard=[]))
+    run(fake, s, t)
+    saved = fake.get("Turn", t["id"])
+    assert saved["status"] == "skipped" and saved["skip_reason"] == "no_answer"
+
+
+def test_debrief_silence_after_follow_up_still_closes_and_extracts(fake, monkeypatch, friend):
+    s = live_session(fake)
+    t = debrief_turn(fake, s)
+    monkeypatch.setattr(flow.debrief, "follow_up", lambda *a, **k: "ומה קרה אז?")
+    robot = use_robot(monkeypatch, FakeRobot(heard=[heard("סיפרתי על הפרויקט")]))  # then silence
+    for _ in range(4):
+        if fake.get("Turn", t["id"])["status"] in ("done", "skipped"):
+            break
+        run(fake, s, t)
+    saved = fake.get("Turn", t["id"])
+    assert saved["status"] == "done" and saved["debrief_moments"] == [{"turn_order": 3}]
+    assert robot.said()[-1] == "יאללה, נתראה!"

@@ -20,6 +20,7 @@ See docs/superpowers/specs/2026-11-04-autonomous-robot-conversation-design.md
 import time
 
 import acknowledgement
+import debrief
 from lab_db import client as b44
 import config
 import furhat_client
@@ -199,6 +200,8 @@ def _speak(turn, session, turns, propose):
         return _update(turn, status="done", done_at=now())
     if _is_scripted_opening(turn):
         return _speak_scripted(turn, session, turns)
+    if turn.get("phase") == "Debrief" and not turn.get("question_text"):
+        return _speak_debrief_opener(turn, session)
     if turn.get("generated_by_engine") and not turn.get("question_text"):
         position, total = _position(turn, turns)
         line = small_talk.generate_line(turn.get("phase"), position, total, turn.get("expects_answer") is not False,
@@ -240,6 +243,56 @@ def _speak_scripted(turn, session, turns):
     return _update(turn, status="listening")
 
 
+def _friend_gender():
+    return config.VOICE_GENDERS.get(config.FRIEND_VOICE)
+
+
+def _speak_debrief_opener(turn, session):
+    """The debrief starts: the robot becomes the friend (once; never switched back) and asks
+    how the interview went."""
+    if config.FRIEND_FACE or config.FRIEND_VOICE:
+        result = furhat_client.set_persona(config.FRIEND_FACE, config.FRIEND_VOICE, session.get("language"))
+        if not result.get("sent"):
+            log(f"Turn {turn.get('order')}: friend persona not applied ({result.get('reason')})")
+    else:
+        log(f"Turn {turn.get('order')}: FRIEND_FACE/FRIEND_VOICE not set - the debrief keeps the current face")
+    line = debrief.opener(session.get("language", "he"), session.get("participant_gender"), _friend_gender())
+    turn = _update(turn, question_text=line, small_talk_log=[{"speaker": "robot", "text": line}],
+                   engine_model=llm_client.current_model("lines"))
+    _say(line, session)
+    return _update(turn, status="listening")
+
+
+def _debrief_reply(turn, session, turns):
+    """After the candidate told something: one more open question (at most
+    DEBRIEF_MAX_FOLLOW_UPS), or close the debrief."""
+    convo = _small_talk_log(turn) + [{"speaker": "participant", "text": turn["participant_answer"]}]
+    follow_ups = sum(1 for line in convo if line["speaker"] == "robot") - 1
+    line = None
+    if follow_ups < config.DEBRIEF_MAX_FOLLOW_UPS:
+        line = debrief.follow_up(convo, session.get("language", "he"), session.get("participant_gender"),
+                                 _friend_gender())
+    if line:
+        return _update(turn, small_talk_log=convo + [{"speaker": "robot", "text": line}],
+                       engine_model=llm_client.current_model("lines"), status="robot_speaking")
+    return _finish_debrief(turn, session, turns, convo)
+
+
+def _finish_debrief(turn, session, turns, convo):
+    """Goodbye, then the moments the candidate told, matched to turns and graded."""
+    bye = debrief.goodbye(convo, session.get("language", "he"), session.get("participant_gender"), _friend_gender())
+    _say(bye, session)
+    convo = convo + [{"speaker": "robot", "text": bye}]
+    turn = _update(turn, small_talk_log=convo)
+    try:
+        moments = _with_one_retry(lambda: debrief.extract_moments(convo, turns))
+    except Exception as e:
+        return _fail(turn, e)
+    log(f"Turn {turn.get('order')}: debrief moments: {len(moments)}")
+    return _update(turn, debrief_moments=moments, engine_model=llm_client.current_model("judgment"),
+                   status="done", done_at=now())
+
+
 def _listen_answer(turn, session, turns, propose):
     """listening: the participant's answer."""
     key = (turn["id"], "answer")
@@ -247,6 +300,8 @@ def _listen_answer(turn, session, turns, propose):
         text, skip_reason = _heard[key], None
     else:
         text, skip_reason = _listen_for(_line_to_say(turn, session), session)
+    if skip_reason and _pending_follow_up(turn) and turn.get("phase") == "Debrief":
+        return _finish_debrief(turn, session, turns, _small_talk_log(turn))  # their story is in already
     if skip_reason and _pending_follow_up(turn):
         return _update(turn, status="done", done_at=now())  # no reply to a follow-up: just move on
     if skip_reason:
@@ -277,6 +332,8 @@ def _process(turn, session, turns, propose):
     proposal for approval, or a content-only acknowledgement)."""
     if turn.get("participant_pe_answer"):
         return _grade_pe(turn, session)
+    if turn.get("phase") == "Debrief":
+        return _debrief_reply(turn, session, turns)
     if turn.get("generated_by_engine") or _is_scripted_opening(turn):
         return _small_talk_reply(turn, session, turns)
     if turn.get("category") == PBDI_CATEGORY:

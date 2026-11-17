@@ -221,3 +221,11 @@ ROBOT_WAIT_SECONDS = 60.0      # how long a pending RobotCommand waits for the r
 # Small talk is a short conversation per turn (researcher decision 2026-11-14):
 # after an answer the robot may ask up to this many follow-ups before moving on.
 SMALL_TALK_MAX_FOLLOW_UPS = 3
+
+# The friend debrief at the end of a Live session (2026-11-17 spec): the robot
+# switches to the friend's face/voice -- the same for every participant, chosen
+# by the researcher; empty = keep the current face/voice (logged) -- and never
+# switches back. The friend asks at most DEBRIEF_MAX_FOLLOW_UPS follow-ups.
+FRIEND_FACE = os.environ.get("FRIEND_FACE", "")
+FRIEND_VOICE = os.environ.get("FRIEND_VOICE", "")
+DEBRIEF_MAX_FOLLOW_UPS = 2
