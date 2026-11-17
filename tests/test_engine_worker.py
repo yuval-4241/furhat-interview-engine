@@ -252,6 +252,23 @@ def test_apply_persona_keeps_the_friend_once_the_debrief_started(fake, monkeypat
     assert calls == [("FriendFace", "FriendVoice")]
 
 
+def test_apply_persona_friend_with_the_interviewers_voice_after_restart(fake, monkeypatch):
+    persona = fake.add("Persona", furhat_face="Isabel", furhat_voice="he-IL-Chirp3-HD-Aoede")
+    session = fake.add("Session", status="Running", mode="Live", language="he", persona=persona["id"])
+    fake.add("Turn", session=session["id"], order=20, phase="Debrief", status="listening", question_text="היי!")
+    calls = []
+    monkeypatch.setattr(engine_worker, "_personas_applied", set())
+    monkeypatch.setattr(engine_worker.config, "FRIEND_FACE", "FriendFace")
+    monkeypatch.setattr(engine_worker.config, "FRIEND_VOICE", "")
+    monkeypatch.setattr(engine_worker.furhat_client, "set_persona",
+                        lambda character, voice, language: calls.append((character, voice))
+                        or {"sent": True, "reason": None})
+
+    engine_worker.apply_persona(session, True)
+
+    assert calls == [("FriendFace", "he-IL-Chirp3-HD-Aoede")]
+
+
 def test_apply_persona_uses_the_interviewer_before_the_debrief(fake, monkeypatch):
     persona = fake.add("Persona", furhat_face="Isabel", furhat_voice="Asaf")
     session = fake.add("Session", status="Running", mode="Live", language="he", persona=persona["id"])

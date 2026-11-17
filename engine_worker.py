@@ -248,6 +248,18 @@ def _debrief_started(session: dict) -> bool:
     return any(t.get("question_text") or t.get("status") not in ("queued", "awaiting_answer") for t in turns)
 
 
+def _persona_voice(session: dict) -> str:
+    """The session persona's voice ('' if none or the lookup fails)."""
+    if not session.get("persona"):
+        return ""
+    try:
+        return b44.get_record("Persona", session["persona"]).get("furhat_voice") or ""
+    except b44.RateLimited:
+        raise
+    except b44.Base44Error:
+        return ""
+
+
 def apply_persona(session: dict, robot_connected: bool) -> None:
     """Send the session's Persona face + voice to the robot, once per session.
 
@@ -256,8 +268,10 @@ def apply_persona(session: dict, robot_connected: bool) -> None:
         return
     if _debrief_started(session) and (config.FRIEND_FACE or config.FRIEND_VOICE):
         # Once the friend appeared the robot never switches back (2026-11-17 spec): after a
-        # restart or a robot reconnect, re-send the friend, not the interviewer.
-        result = furhat_client.set_persona(config.FRIEND_FACE, config.FRIEND_VOICE, session.get("language"))
+        # restart or a robot reconnect, re-send the friend, not the interviewer. With no
+        # FRIEND_VOICE the friend speaks in the interviewer's voice (researcher decision).
+        voice = config.FRIEND_VOICE or _persona_voice(session)
+        result = furhat_client.set_persona(config.FRIEND_FACE, voice, session.get("language"))
         if result["sent"] or result.get("bridge_error"):
             _personas_applied.add(session["id"])
         return

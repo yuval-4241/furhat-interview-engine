@@ -243,8 +243,12 @@ def _speak_scripted(turn, session, turns):
     return _update(turn, status="listening")
 
 
-def _friend_gender():
-    return config.VOICE_GENDERS.get(config.FRIEND_VOICE)
+def _friend_gender(session: dict):
+    """The friend's grammatical gender: its own voice's, or -- when it keeps the interviewer's
+    voice (FRIEND_VOICE empty, researcher decision 2026-11-17) -- the interviewer's."""
+    if config.FRIEND_VOICE:
+        return config.VOICE_GENDERS.get(config.FRIEND_VOICE)
+    return session.get("robot_gender")
 
 
 def _speak_debrief_opener(turn, session):
@@ -256,7 +260,7 @@ def _speak_debrief_opener(turn, session):
             log(f"Turn {turn.get('order')}: friend persona not applied ({result.get('reason')})")
     else:
         log(f"Turn {turn.get('order')}: FRIEND_FACE/FRIEND_VOICE not set - the debrief keeps the current face")
-    line = debrief.opener(session.get("language", "he"), session.get("participant_gender"), _friend_gender())
+    line = debrief.opener(session.get("language", "he"), session.get("participant_gender"), _friend_gender(session))
     turn = _update(turn, question_text=line, small_talk_log=[{"speaker": "robot", "text": line}],
                    engine_model=llm_client.current_model("lines"))
     _say(line, session)
@@ -273,7 +277,7 @@ def _debrief_reply(turn, session, turns):
     line = None
     if follow_ups < config.DEBRIEF_MAX_FOLLOW_UPS:
         line = debrief.follow_up(convo, session.get("language", "he"), session.get("participant_gender"),
-                                 _friend_gender())
+                                 _friend_gender(session))
     if line:
         return _update(turn, small_talk_log=convo + [{"speaker": "robot", "text": line}],
                        engine_model=llm_client.current_model("lines"), status="robot_speaking")
@@ -294,7 +298,7 @@ def _finish_debrief(turn, session, turns, convo):
         convo = turn["small_talk_log"]
     else:
         bye = debrief.goodbye(convo, session.get("language", "he"), session.get("participant_gender"),
-                              _friend_gender())
+                              _friend_gender(session))
         convo = convo + [{"speaker": "robot", "text": bye, "goodbye": True}]
         turn = _update(turn, small_talk_log=convo)
         _say(bye, session)

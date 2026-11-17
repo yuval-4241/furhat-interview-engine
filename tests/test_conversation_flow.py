@@ -851,3 +851,18 @@ def test_debrief_retry_after_silence_close_does_not_listen_again(fake, monkeypat
     assert len([c for c in robot.calls if c[0] == "listen"]) == listens  # no new listen
     assert robot.said().count("יאללה, נתראה!") == 1
     assert fake.get("Turn", t["id"])["status"] == "done"
+
+
+def test_friend_keeps_the_interviewers_voice_and_gender(fake, monkeypatch, friend):
+    """Researcher decision 2026-11-17: the friend has its own face but the interviewer's voice
+    (FRIEND_VOICE empty) -- so it also speaks in the interviewer's grammatical gender."""
+    monkeypatch.setattr(flow.config, "FRIEND_VOICE", "")
+    s = {**live_session(fake), "robot_gender": "female"}  # speech context, as engine_worker adds it
+    t = debrief_turn(fake, s)
+    seen = {}
+    monkeypatch.setattr(flow.debrief, "opener", lambda language, pg, friend_gender: seen.update(g=friend_gender) or "היי!")
+    monkeypatch.setattr(flow.debrief, "follow_up", lambda *a, **k: None)
+    robot = use_robot(monkeypatch, FakeRobot(heard=[heard("היה בסדר")]))
+    run(fake, s, t)
+    assert robot.calls[0] == ("persona", "FriendFace", "")
+    assert seen["g"] == "female"

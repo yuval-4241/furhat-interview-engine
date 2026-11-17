@@ -224,7 +224,8 @@ SMALL_TALK_MAX_FOLLOW_UPS = 3
 
 # The friend debrief at the end of a Live session (2026-11-17 spec): the robot
 # switches to the friend's face/voice -- the same for every participant, chosen
-# by the researcher; empty = keep the current face/voice (logged) -- and never
+# by the researcher; empty = keep the current face/voice (logged); FRIEND_VOICE is left
+# empty on purpose: the friend keeps the interviewer's voice (2026-11-17) -- and never
 # switches back. The friend asks at most DEBRIEF_MAX_FOLLOW_UPS follow-ups.
 FRIEND_FACE = os.environ.get("FRIEND_FACE", "")
 FRIEND_VOICE = os.environ.get("FRIEND_VOICE", "")
