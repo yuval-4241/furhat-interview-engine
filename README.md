@@ -1,4 +1,4 @@
-# Conversation Engine — Furhat job-interview training (thesis)
+# furhat-interview-engine — Furhat job-interview training (thesis)
 
 The "brain" of a social robot (Furhat) that runs practice job interviews with
 autistic adults. The robot asks questions, listens, reacts with an emotion on
@@ -15,7 +15,7 @@ enforce and audit this.
 
 | Repo | What | Where |
 |---|---|---|
-| **conversation_engine** (this one) | Python: the conversation, the LLM calls, evaluation, PE grading, the friend debrief | `~/Documents/GitHub/conversation_engine` |
+| [**furhat-interview-engine**](https://github.com/yuval-4241/furhat-interview-engine) (this one; local folder `conversation_engine`) | Python: the conversation, the LLM calls, evaluation, PE grading, the friend debrief | `~/Documents/GitHub/conversation_engine` |
 | [furhat-emotion-study](https://github.com/yuval-4241/furhat-emotion-study) | Kotlin: the Furhat skill (`interview-skill`), the 33 facial expressions, their validation | `~/Documents/GitHub/furhat-emotion-study` |
 | [furhat-insight-lab](https://github.com/yuval-4241/furhat-insight-lab) (private) | The lab website (React + Supabase, on Vercel): sessions, participants, transcripts, export | `~/Documents/Workspace/University/lab-website/furhat-insight-lab` |
 
