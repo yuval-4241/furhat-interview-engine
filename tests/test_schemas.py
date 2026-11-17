@@ -4,7 +4,7 @@ import pytest
 from pydantic import ValidationError
 
 import config
-from schemas import EvaluatorOutputSchema
+from evaluation.schemas import EvaluatorOutputSchema
 
 
 def test_valid_evaluation_passes():

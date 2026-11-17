@@ -1,6 +1,6 @@
 import pytest
 
-import model_registry
+from connectors import model_registry
 from tests.fakes import FakeBase44
 
 

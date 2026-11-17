@@ -2,9 +2,7 @@
 
 import itertools
 
-import base44_client
-
-
+from connectors import base44_client
 class FakeBase44:
     """In-memory stand-in for base44_client: exact-match queries, compare-and-set claim.
 

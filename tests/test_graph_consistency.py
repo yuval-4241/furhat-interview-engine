@@ -1,6 +1,4 @@
-import graph
-
-
+from evaluation import graph
 def test_consistency_node_flags_bad_high_valence():
     state = {
         "evaluation": {"category": "BAD", "valence": "high", "arousal": "medium", "confidence": 0.9},

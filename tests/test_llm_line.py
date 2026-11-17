@@ -1,6 +1,4 @@
-import llm_line
-
-
+from engine import llm_line
 def _fake_llm(monkeypatch, replies):
     calls = []
 

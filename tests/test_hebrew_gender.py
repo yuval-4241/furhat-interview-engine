@@ -1,8 +1,6 @@
 import pytest
 
-import hebrew_gender
-
-
+from engine import hebrew_gender
 @pytest.mark.parametrize("text,male,female", [
     ("ספר/י על עצמך", "ספר על עצמך", "ספרי על עצמך"),
     ("מה תעשה/י אם המנהל יבקש", "מה תעשה אם המנהל יבקש", "מה תעשי אם המנהל יבקש"),

@@ -1,9 +1,9 @@
 import pandas as pd
 
-import bias_check
-import personas
-import evaluator
-from question_bank import QuestionBank
+from scripts import bias_check
+from evaluation import personas
+from evaluation import evaluator
+from evaluation.question_bank import QuestionBank
 
 
 def _fake_call_llm(system, user_message, max_tokens=500, temperature=0.7, model=None):

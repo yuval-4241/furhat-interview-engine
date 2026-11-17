@@ -1,6 +1,6 @@
 import pytest
 
-import small_talk
+from engine import small_talk
 from prompts.small_talk_prompt import FALLBACK_LINES
 
 

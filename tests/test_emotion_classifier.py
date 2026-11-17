@@ -1,6 +1,6 @@
 import config
-import emotion_classifier
-from emotion_classifier import classify_emotion, derive_valence, derive_arousal, CORE_EMOTIONS
+from engine import emotion_classifier
+from engine.emotion_classifier import classify_emotion, derive_valence, derive_arousal, CORE_EMOTIONS
 
 
 def test_classify_emotion_parses_valid_llm_response(monkeypatch):

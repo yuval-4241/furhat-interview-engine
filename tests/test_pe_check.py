@@ -2,7 +2,7 @@ import json
 
 import pytest
 
-import pe_check
+from engine import pe_check
 from prompts.pe_check_prompt import HEBREW_NAMES, PE_CHECK_SYSTEM_PROMPT, WORD_LISTS
 
 
@@ -54,7 +54,7 @@ def test_check_pe_answer_keeps_match_shape(monkeypatch):
 
 
 def test_word_lists_cover_every_displayable_emotion():
-    import emotion_classifier
+    from engine import emotion_classifier
     assert set(WORD_LISTS) == set(emotion_classifier.CORE_EMOTIONS) == set(HEBREW_NAMES)
     for target, lists in WORD_LISTS.items():
         assert lists["correct"], target

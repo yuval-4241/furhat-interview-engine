@@ -1,8 +1,6 @@
 import json
 
-import graph
-
-
+from evaluation import graph
 def test_select_response_includes_disabled_robot_reaction_by_default(monkeypatch):
     monkeypatch.setattr(graph.config, "ROBOT_REACTION_ENABLED", False)
     monkeypatch.setattr(

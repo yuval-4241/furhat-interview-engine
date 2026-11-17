@@ -1,8 +1,6 @@
 import json
 
-import listening_gestures as lg
-
-
+from scripts import listening_gestures as lg
 def gesture(**over):
     g = {"name": "SmallNod", "category": "go_on", "description": "a small nod",
          "frames": [{"time": [0.25], "params": {"NECK_TILT": 4.0}}], "reset": 0.6}

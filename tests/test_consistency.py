@@ -1,4 +1,4 @@
-from guardrail import ConsistencyResult, check_consistency
+from evaluation.guardrail import ConsistencyResult, check_consistency
 
 
 def test_bad_category_with_high_valence_is_inconsistent():

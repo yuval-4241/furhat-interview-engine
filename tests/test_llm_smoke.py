@@ -5,10 +5,10 @@ import os
 
 import pytest
 
-import acknowledgement
+from engine import acknowledgement
 import config
-import llm_client
-import pe_check
+from connectors import llm_client
+from engine import pe_check
 from prompts.acknowledgement_prompt import FALLBACK_LINES
 
 pytestmark = pytest.mark.skipif(os.environ.get("RUN_LLM_SMOKE") != "1",

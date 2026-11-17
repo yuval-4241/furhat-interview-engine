@@ -1,7 +1,7 @@
 import pytest
 
-import guardrail
-from guardrail import GuardrailResult, check_rationale
+from evaluation import guardrail
+from evaluation.guardrail import GuardrailResult, check_rationale
 
 
 def test_no_matches_passes_with_zero_score():

@@ -1,6 +1,6 @@
-import ab_test
-import personas
-from question_bank import QuestionBank
+from scripts import ab_test
+from evaluation import personas
+from evaluation.question_bank import QuestionBank
 
 
 def _fake_call_llm(system, user_message, max_tokens=500, temperature=0.7, model=None):

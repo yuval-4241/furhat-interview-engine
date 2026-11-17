@@ -1,6 +1,6 @@
 import pytest
 
-import engine_worker
+from engine import engine_worker
 from tests.fakes import FakeBase44, FakeRobot, heard
 
 

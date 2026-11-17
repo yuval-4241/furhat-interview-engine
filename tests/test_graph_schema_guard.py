@@ -1,5 +1,5 @@
-import graph
-from evaluator import Evaluation
+from evaluation import graph
+from evaluation.evaluator import Evaluation
 
 
 def _good_evaluation():

@@ -2,9 +2,7 @@ import json
 import os
 
 import config
-import interaction_log
-
-
+from apps import interaction_log
 def test_log_turn_appends_one_jsonl_record(tmp_path, monkeypatch):
     monkeypatch.setattr(config, "SESSIONS_DIR", str(tmp_path))
 

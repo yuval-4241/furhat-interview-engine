@@ -1,8 +1,6 @@
 import json
 
-import evaluator
-
-
+from evaluation import evaluator
 def _fake_valid_json():
     return json.dumps(
         {

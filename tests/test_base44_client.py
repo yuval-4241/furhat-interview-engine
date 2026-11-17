@@ -3,9 +3,7 @@ import json
 import pytest
 import requests
 
-import base44_client
-
-
+from connectors import base44_client
 class FakeResponse:
     def __init__(self, payload, status=200):
         self._payload = payload

@@ -3,9 +3,7 @@ import json
 
 import pytest
 
-import stt
-
-
+from connectors import stt
 class _FakeResponse:
     def __init__(self, payload, status_code=200):
         self._payload = payload

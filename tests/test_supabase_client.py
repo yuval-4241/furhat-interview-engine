@@ -3,8 +3,7 @@ import json
 import pytest
 import requests
 
-import supabase_client as sb
-
+from connectors import supabase_client as sb
 BASE = "https://proj.supabase.co"
 
 

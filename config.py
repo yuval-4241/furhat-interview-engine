@@ -147,7 +147,8 @@ NO_MASKING_FLAG_PATTERNS = [
 
 # ── File locations ──────────────────────────────────────────────────────────
 DATA_DIR = os.path.join(os.path.dirname(__file__), "data")
-RESPONSE_BANK_PATH = os.path.join(DATA_DIR, "response_bank_seed.json")
+SEEDS_DIR = os.path.join(DATA_DIR, "seeds")  # inputs: question bank, response bank
+RESPONSE_BANK_PATH = os.path.join(SEEDS_DIR, "response_bank_seed.json")
 REVIEW_QUEUE_PATH = os.path.join(DATA_DIR, "review_queue.jsonl")
 RUN_LOG_PATH = os.path.join(DATA_DIR, "run_log.jsonl")
 SESSIONS_DIR = os.path.join(DATA_DIR, "sessions")

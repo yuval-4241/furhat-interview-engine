@@ -3,9 +3,7 @@ import json
 
 import requests
 
-import furhat_client
-
-
+from connectors import furhat_client
 class _FakeResponse:
     def __init__(self, status_code=200):
         self.status_code = status_code

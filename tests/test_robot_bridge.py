@@ -2,9 +2,7 @@ import json
 
 import requests
 
-import robot_bridge
-
-
+from connectors import robot_bridge
 def test_disabled_by_default_makes_no_network_call(monkeypatch):
     monkeypatch.setattr(robot_bridge.config, "ROBOT_REACTION_ENABLED", False)
 

@@ -54,21 +54,21 @@ set -a; source .env; set +a
 
 # Run the Engine worker (shortcut: type `engine` — an alias in ~/.zshrc that
 # runs this in a subshell, so the .env keys don't stay in the terminal)
-(cd ~/Documents/GitHub/conversation_engine && source venv/bin/activate && set -a && source .env && set +a && python engine_worker.py)
+(cd ~/Documents/GitHub/conversation_engine && source venv/bin/activate && set -a && source .env && set +a && python -m engine.engine_worker)
 # To recreate the shortcut on a new machine, add to ~/.zshrc:
-# alias engine='(cd ~/Documents/GitHub/conversation_engine && source venv/bin/activate && set -a && source .env && set +a && python engine_worker.py)'
+# alias engine='(cd ~/Documents/GitHub/conversation_engine && source venv/bin/activate && set -a && source .env && set +a && python -m engine.engine_worker)'
 
 # Read-only check that the website connection works (whichever LAB_BACKEND is set)
 python -c "import lab_db; print(lab_db.client.list_records('EngineHeartbeat'))"
 
 # Run one conversation through the full graph (prints final state as JSON)
-python graph.py
+python -m evaluation.graph
 
 # Batch runner: every persona x every session_1 question, writes results/ + appends to data/run_log.jsonl
-python run_demo.py
+python -m scripts.run_demo
 
-# A/B test evaluator prompt variants A vs B (scipy chi-square test), writes data/ab_test_results.{csv,json}
-python ab_test.py --n 20
+# A/B test evaluator prompt variants A vs B (scipy chi-square test), writes results/ab_test_results.{csv,json}
+python -m scripts.ab_test --n 20
 
 # Smoke-test a single module standalone, e.g.:
 python -c "import evaluator; print(evaluator.evaluate('Tell me about yourself', 'I have 5 years in QA.'))"
@@ -89,10 +89,17 @@ RUN_LLM_SMOKE=1 pytest tests/test_llm_smoke.py -v
 ```
 
 Beyond the automated suite, end-to-end verification is also done by running
-the modules/scripts above and inspecting output (e.g. `python graph.py` for
+the modules/scripts above and inspecting output (e.g. `python -m evaluation.graph` for
 a real, non-mocked full-pipeline pass).
 
 ## Architecture
+
+**Folder layout (since 2026-11-17):** the modules below live in packages —
+`engine/` (the Live session), `connectors/` (LLM, website DB, robot, STT),
+`evaluation/` (evaluator, guardrail, personas, graph), `scripts/` (run with
+`python -m scripts.<name>`), `apps/` (Streamlit, `streamlit run apps/<name>.py`).
+`config.py` and `prompts/` stay at the root. Import as `from engine import
+small_talk`. Each folder's README lists its files.
 
 Five independently-testable pieces wired into one LangGraph state machine
 (`graph.py`):
@@ -145,7 +152,7 @@ persona answer -> evaluator -> schema guard (retry once on failure)
   review-queue reason when something else already triggered a route there.
 - **`response_bank.py`** (#6) — `ResponseBank.get(valence, arousal)` returns
   a random VA-matched robot reply from the 3x3 VA matrix
-  (`config.va_cells()`). Backed by `data/response_bank_seed.json`
+  (`config.va_cells()`). Backed by `data/seeds/response_bank_seed.json`
   (placeholder Hebrew data, 9 cells) — swap the seed file without touching
   the module's API.
 - **`emotion_classifier.py`** — `classify_emotion(question, answer_text)`,
@@ -176,7 +183,7 @@ persona answer -> evaluator -> schema guard (retry once on failure)
   process the same Turn. Unlike `robot_bridge.py`, it raises `Base44Error`
   — the polling worker must know a write failed.
 - **`engine_worker.py`** — polling loop over the Base44 website, run by
-  hand on experiment days (`python engine_worker.py`, Ctrl+C to stop).
+  hand on experiment days (`python -m engine.engine_worker`, Ctrl+C to stop).
   Heartbeat runs on its own thread (a `/listen` blocks the main loop).
   Live sessions go to `conversation_flow` (`run_live_session`: turns run
   back to back unless the researcher pauses/ends the session); Simulation
@@ -254,7 +261,7 @@ persona answer -> evaluator -> schema guard (retry once on failure)
   (calibration study only; no longer hosts the bridge). Build with
   `interview-skill/rebuild.sh`.
 - **`question_bank.py`** — loads the 30-question interview set
-  (`data/question_bank_seed.json`), organized into 5 sessions of 6 questions
+  (`data/seeds/question_bank_seed.json`), organized into 5 sessions of 6 questions
   each, increasing in difficulty.
 - **`review_queue.py`** (#7 HITL) — `enqueue()` writes to
   `data/review_queue.jsonl` when an item is low-confidence

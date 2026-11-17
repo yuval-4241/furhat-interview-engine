@@ -1,6 +1,6 @@
 import pytest
 
-import conversation_flow as flow
+from engine import conversation_flow as flow
 from tests.fakes import FakeBase44, FakeRobot, heard
 
 Q = "ספר/י על עצמך"

@@ -1,9 +1,7 @@
 import pytest
 
 import config
-import llm_client
-
-
+from connectors import llm_client
 class _FakeCompletions:
     def __init__(self, sink):
         self.sink = sink

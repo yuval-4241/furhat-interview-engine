@@ -1,4 +1,4 @@
-import acknowledgement
+from engine import acknowledgement
 from prompts.acknowledgement_prompt import FALLBACK_LINES
 
 

@@ -2,7 +2,7 @@ import json
 
 import pytest
 
-import debrief
+from engine import debrief
 from prompts import debrief_prompt
 
 

@@ -1,6 +1,6 @@
-import reaction_line
+from engine import reaction_line
 from prompts.reaction_line_prompt import FALLBACK_LINES
-from emotion_classifier import CORE_EMOTIONS
+from engine.emotion_classifier import CORE_EMOTIONS
 
 
 def _fake(monkeypatch, line, seen=None):
