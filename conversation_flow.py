@@ -31,7 +31,9 @@ import small_talk
 from worker_common import WORKER_ID, log, now
 
 PBDI_CATEGORY = "Behavioral (PBDI)"
-PE_QUESTION = "מה לדעתך הרגשתי, ולמה?"
+# TODO(researcher): approve wording. Friend-toned per-turn question (2026-11-17 spec);
+# must match the website's sessionUtils.PE_QUESTION.
+PE_QUESTION = "שמת לב איך הגבתי? מה לדעתך עבר עליי?"
 NOT_HEARD_LINE = "סליחה, לא שמעתי. אפשר לחזור?"
 FINISHED = ("done", "skipped")
 WAITING_FOR_RESEARCHER = ("awaiting_approval", "awaiting_feedback")
@@ -372,7 +374,8 @@ def _grade_pe(turn, session):
     """Correct/Partial/Wrong + the feedback line, then wait for the researcher's Approve."""
     try:
         graded = _with_one_retry(
-            lambda: pe_check.grade_pe_answer(turn.get("target_emotion", ""), turn["participant_pe_answer"]))
+            lambda: pe_check.grade_pe_answer(turn.get("target_emotion", ""), turn["participant_pe_answer"],
+                                             turn.get("emotion_trigger", "")))
     except Exception as e:
         return _fail(turn, e)
     feedback = pe_feedback.generate_feedback(turn.get("target_emotion", ""), turn.get("question_text", ""),
@@ -381,6 +384,8 @@ def _grade_pe(turn, session):
                                              session.get("participant_gender"), session.get("robot_gender"))
     log(f"Turn {turn.get('order')}: PE {graded['result']}")
     return _update(turn, pe_result=graded["result"], pe_explanation=graded["explanation"],
+                   pe_reason_result=graded.get("reason_result", ""),
+                   pe_reason_explanation=graded.get("reason_explanation", ""),
                    proposed_feedback=feedback["line"], pe_answer_why=feedback["reason"],
                    engine_model=llm_client.current_model("judgment"),
                    engine_responded_at=now(), status="awaiting_feedback")

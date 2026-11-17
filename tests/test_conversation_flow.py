@@ -435,7 +435,8 @@ def test_approved_reaction_then_pe_question_then_grade(fake, monkeypatch):
                   target_emotion="HAPPINESS", intensity=2, pe_answer_why="הצלחתי בפרויקט")
     robot = use_robot(monkeypatch, FakeRobot(heard=[heard("התלהבת")]))
     monkeypatch.setattr(flow.pe_check, "grade_pe_answer",
-                        lambda target, answer: {"result": "Partial", "explanation": "קרוב"})
+                        lambda target, answer, trigger="": {"result": "Partial", "explanation": "קרוב",
+                                                            "reason_result": "", "reason_explanation": ""})
     monkeypatch.setattr(flow.pe_feedback, "generate_feedback",
                         lambda target, question, answer, guess, result, language="he", *genders:
                         {"line": f"{target}/{answer}/{guess}/{result}", "reason": "סיפרת שהצלחת"})
@@ -487,7 +488,7 @@ def test_pe_grading_failure_sets_engine_error(fake, monkeypatch):
                   participant_pe_answer="שמחת", target_emotion="HAPPINESS")
     use_robot(monkeypatch, FakeRobot())
 
-    def boom(target, answer):
+    def boom(target, answer, trigger=""):
         raise TimeoutError("LLM down")
 
     monkeypatch.setattr(flow.pe_check, "grade_pe_answer", boom)
@@ -535,7 +536,7 @@ def test_retry_after_pe_question_drop_does_not_repeat_reaction(fake, monkeypatch
     fake.update_record("Turn", t["id"], {"engine_error": ""})
     second = use_robot(monkeypatch, FakeRobot(heard=[heard("שמחת")]))
     monkeypatch.setattr(flow.pe_check, "grade_pe_answer",
-                        lambda target, answer: {"result": "Correct", "explanation": "נכון"})
+                        lambda target, answer, trigger="": {"result": "Correct", "explanation": "נכון"})
     monkeypatch.setattr(flow.pe_feedback, "generate_feedback",
                         lambda target, question, answer, guess, result, language="he", *genders:
                         {"line": "כן", "reason": "כי"})
@@ -556,7 +557,7 @@ def test_done_say_command_does_not_suppress_the_reaction(fake, monkeypatch):
     fake.add("RobotCommand", session=s["id"], turn=t["id"], type="say", text="קריאה", status="done")
     robot = use_robot(monkeypatch, FakeRobot(heard=[heard("שמחת")]))
     monkeypatch.setattr(flow.pe_check, "grade_pe_answer",
-                        lambda target, answer: {"result": "Correct", "explanation": "נכון"})
+                        lambda target, answer, trigger="": {"result": "Correct", "explanation": "נכון"})
     monkeypatch.setattr(flow.pe_feedback, "generate_feedback",
                         lambda *a: {"line": "כן", "reason": "כי"})
 
@@ -600,7 +601,7 @@ def test_pe_answer_survives_a_failed_save_and_is_not_asked_again(fake, monkeypat
     t = pbdi_turn(fake, s, status="pe_listening", participant_answer="תשובה", target_emotion="FEAR")
     robot = use_robot(monkeypatch, FakeRobot(heard=[heard("פחדת")]))
     monkeypatch.setattr(flow.pe_check, "grade_pe_answer",
-                        lambda target, answer: {"result": "Correct", "explanation": "נכון"})
+                        lambda target, answer, trigger="": {"result": "Correct", "explanation": "נכון"})
     monkeypatch.setattr(flow.pe_feedback, "generate_feedback", lambda *a: {"line": "כן", "reason": "כי"})
     _fail_next_update(monkeypatch, fake, "participant_pe_answer")
 
@@ -699,3 +700,25 @@ def test_unscripted_opening_unchanged(fake, monkeypatch):
     robot = use_robot(monkeypatch, FakeRobot(heard=[heard("טוב")]))
     run(fake, s, t)
     assert robot.calls[0] == ("say", "Opening 1/2")
+
+
+
+def test_pe_grade_saves_reason_fields(fake, monkeypatch):
+    s = live_session(fake)
+    t = pbdi_turn(fake, s, status="engine_processing", participant_answer="ישבתי בכלא", target_emotion="SURPRISE",
+                  intensity=2, emotion_trigger="Told about prison.", participant_pe_answer="הופתעת כי סיפרתי על הכלא")
+    seen = {}
+    monkeypatch.setattr(flow.pe_check, "grade_pe_answer",
+                        lambda target, answer, trigger="": seen.update(trigger=trigger) or
+                        {"result": "Correct", "explanation": "x", "reason_result": "Matches",
+                         "reason_explanation": "אותה סיבה"})
+    monkeypatch.setattr(flow.pe_feedback, "generate_feedback", lambda *a, **k: {"line": "נכון", "reason": "r"})
+    use_robot(monkeypatch, FakeRobot())
+    run(fake, s, t)
+    saved = fake.get("Turn", t["id"])
+    assert seen["trigger"] == "Told about prison."
+    assert saved["pe_reason_result"] == "Matches" and saved["pe_reason_explanation"] == "אותה סיבה"
+
+
+def test_pe_question_is_friend_toned():
+    assert flow.PE_QUESTION == "שמת לב איך הגבתי? מה לדעתך עבר עליי?"

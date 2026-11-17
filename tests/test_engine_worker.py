@@ -205,13 +205,15 @@ def test_check_pe_writes_result(fake, monkeypatch):
     turn = fake.add("Turn", session=session["id"], order=1, status="awaiting_pe_check",
                     target_emotion="HAPPINESS", participant_pe_answer="התלהבת")
     monkeypatch.setattr(engine_worker.pe_check, "grade_pe_answer",
-                        lambda gt, ans: {"result": "Partial", "explanation": "קרוב"})
+                        lambda gt, ans, trigger="": {"result": "Partial", "explanation": "קרוב",
+                                                     "reason_result": "Partly", "reason_explanation": "בערך"})
 
     engine_worker.check_pe(turn, session)
 
     saved = fake.get("Turn", turn["id"])
     assert saved["pe_result"] == "Partial"
     assert saved["pe_explanation"] == "קרוב"
+    assert saved["pe_reason_result"] == "Partly" and saved["pe_reason_explanation"] == "בערך"
     assert saved["status"] == "awaiting_feedback"
 
 

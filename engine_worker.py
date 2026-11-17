@@ -228,10 +228,13 @@ def check_pe(turn: dict, session: dict) -> None:
     if session.get("mode") == "Mock":
         graded = {"result": "Correct", "explanation": "Mock mode — no LLM call."}
     else:
-        graded = pe_check.grade_pe_answer(turn.get("target_emotion", ""), turn.get("participant_pe_answer", ""))
+        graded = pe_check.grade_pe_answer(turn.get("target_emotion", ""), turn.get("participant_pe_answer", ""),
+                                          turn.get("emotion_trigger", ""))
     b44.update_record("Turn", turn["id"], {
         "pe_result": graded["result"],
         "pe_explanation": graded["explanation"],
+        "pe_reason_result": graded.get("reason_result", ""),
+        "pe_reason_explanation": graded.get("reason_explanation", ""),
         "status": "awaiting_feedback",
     })
     _log(f"Turn {turn.get('order')}: PE {graded['result']}")
