@@ -15,3 +15,7 @@ data/mit dataset/
 
 # Office lock files
 ~$*
+
+# OS and local tool folders
+.DS_Store
+.claude/
