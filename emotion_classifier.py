@@ -105,12 +105,13 @@ def _strip_fences(text: str) -> str:
 MIN_INTENSITY = 2
 
 
-def classify_emotion(question: str, answer_text: str, used_emotions=()) -> dict:
-    """used_emotions: emotions the robot already showed this session, so the pick varies."""
+def classify_emotion(question: str, answer_text: str, recent_emotions: list[str] | None = None) -> dict:
+    """recent_emotions: the robot's last (up to 2) shown emotions, so the pick varies."""
     user_message = f"Interview question: {question}\n\nCandidate answer: {answer_text}"
-    used = list(dict.fromkeys(used_emotions))  # unique, in order
-    if used:
-        user_message += f"\n\nAlready shown in this session: {', '.join(used)}"
+    recent = list(dict.fromkeys(recent_emotions or []))  # unique, in order
+    if recent:
+        user_message += (f"\n\nRecent emotions you already showed: {', '.join(recent)}. "
+                         "Prefer a different emotion unless this answer strongly demands the same one.")
 
     raw = llm_client.call_llm(
         system=_SYSTEM_PROMPT,

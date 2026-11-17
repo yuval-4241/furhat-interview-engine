@@ -136,20 +136,22 @@ def test_prompt_asks_for_intensity_2_or_3_only(monkeypatch):
     assert "2 (clear) or 3 (strong)" in captured["system"]
 
 
-def test_used_emotions_are_listed_in_the_message(monkeypatch):
+def test_recent_emotions_are_listed_in_the_message(monkeypatch):
     captured = {}
     monkeypatch.setattr(emotion_classifier.llm_client, "call_llm",
                         lambda **k: captured.update(k) or '{"emotion": "FEAR", "intensity": 3}')
-    classify_emotion("Q", "A", used_emotions=["HAPPINESS", "CALM", "HAPPINESS"])
-    assert "Already shown in this session: HAPPINESS, CALM" in captured["user_message"]
+    classify_emotion("Q", "A", recent_emotions=["HAPPINESS", "CALM"])
+    assert ("Recent emotions you already showed: HAPPINESS, CALM. "
+            "Prefer a different emotion unless this answer strongly demands the same one."
+            ) in captured["user_message"]
 
 
-def test_no_used_emotions_no_list(monkeypatch):
+def test_no_recent_emotions_no_list(monkeypatch):
     captured = {}
     monkeypatch.setattr(emotion_classifier.llm_client, "call_llm",
                         lambda **k: captured.update(k) or '{"emotion": "FEAR", "intensity": 3}')
     classify_emotion("Q", "A")
-    assert "Already shown" not in captured["user_message"]
+    assert "Recent emotions" not in captured["user_message"]
 
 
 # ── trigger: what in the answer led to the emotion (2026-11-17 spec) ────────

@@ -380,11 +380,12 @@ def test_pbdi_answer_stops_for_approval(fake, monkeypatch):
     assert robot.said() == ["ספר על הצלחה"]  # no acknowledgement for PBDI; spoken form is rendered
 
 
-def test_pbdi_passes_emotions_already_shown(fake, monkeypatch):
+def test_pbdi_passes_the_last_two_emotions_shown(fake, monkeypatch):
     s = live_session(fake)
-    fake.add("Turn", session=s["id"], order=1, phase="Main", status="done", target_emotion="CALM")
-    fake.add("Turn", session=s["id"], order=2, phase="Main", status="skipped", target_emotion="FEAR")
-    t = fake.add("Turn", session=s["id"], order=3, phase="Main", category=flow.PBDI_CATEGORY,
+    fake.add("Turn", session=s["id"], order=1, phase="Main", status="done", target_emotion="HAPPINESS")
+    fake.add("Turn", session=s["id"], order=2, phase="Main", status="done", target_emotion="CALM")
+    fake.add("Turn", session=s["id"], order=3, phase="Main", status="skipped", target_emotion="FEAR")
+    t = fake.add("Turn", session=s["id"], order=4, phase="Main", category=flow.PBDI_CATEGORY,
                  question_text="שאלה", status="engine_processing", participant_answer="תשובה")
     use_robot(monkeypatch, FakeRobot())
     seen = {}
@@ -866,3 +867,11 @@ def test_friend_keeps_the_interviewers_voice_and_gender(fake, monkeypatch, frien
     run(fake, s, t)
     assert robot.calls[0] == ("persona", "FriendFace", "")
     assert seen["g"] == "female"
+
+
+def test_emotions_shown_passes_whatever_exists_when_fewer_than_two():
+    earlier = {"order": 1, "target_emotion": "CALM"}
+    no_emotion = {"order": 2}  # small talk / acknowledgement turn: no emotion
+    now_turn = {"order": 3}
+    assert flow._emotions_shown([earlier, no_emotion, now_turn], now_turn) == ["CALM"]
+    assert flow._emotions_shown([now_turn], now_turn) == []

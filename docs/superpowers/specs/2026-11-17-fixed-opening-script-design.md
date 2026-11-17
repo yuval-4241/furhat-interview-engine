@@ -42,6 +42,9 @@ opening. The researcher wants:
   small-talk follow-ups may also be 2–3 sentences. No evaluation, no comment
   on delivery, no new question inside an acknowledgement (No-Masking). PBDI
   reaction lines (`reaction_line.py`) stay as they are.
+  *(Superseded later on 2026-11-17, researcher decision: PBDI reaction lines
+  are now 2 sentences + an optional closing remark that is never a question,
+  at most 40 words -- see "Amendment" at the end.)*
 - **Skipping: both** — per-question checkboxes before the session starts,
   and "skip to here" during the session. PBDI questions can't be removed
   before the session.
@@ -205,3 +208,28 @@ Migration `supabase/migrations/2026111700000_questions_phase.sql`:
 - Wording of the bridge/acknowledgement prompts within the rules above
   (prompts are not methodology-locked, but the researcher reviews them).
 - Migration file name/timestamp.
+
+## Amendment (2026-11-17, later the same day)
+
+Researcher decisions, made after this spec was approved:
+
+1. **Longer PBDI reaction lines.** `prompts/reaction_line_prompt.py` now asks
+   for 2 sentences + an optional third: (1) a specific detail from the
+   answer, (2) the reaction, as a professional interviewer says it, in a
+   tone fitting the emotion, (3) optional short closing remark, never a
+   question (the fixed PE question follows right after), omitted if forced.
+   At most 40 words (was 12). All other rules unchanged (no grading, no
+   delivery comments, never names the emotion, gendered forms, fixed
+   one-sentence fallbacks). `llm_line` does not cut multi-sentence lines.
+   - Open: does the skill's `/react` face hold for the whole longer speech?
+     (TODO in `reaction_line.py`; check `furhat-emotion-study`.)
+   - Trade-off for the thesis: a longer line gives more emotional signal and
+     may make the PE task easier.
+2. **Emotion variety: last 2 only.** `conversation_flow._emotions_shown`
+   passes only the last 2 emotions shown (was the whole session), and
+   `emotion_classifier.classify_emotion(..., recent_emotions)` adds:
+   "Recent emotions you already showed: X, Y. Prefer a different emotion
+   unless this answer strongly demands the same one." Reason: with the whole
+   session listed, "prefer one not on the list" became impossible after a
+   few turns. Consistent with the 2026-08-19 variety spec's lesson: no
+   specific replacement emotion is named.

@@ -367,9 +367,11 @@ def _process(turn, session, turns, propose):
 
 
 def _emotions_shown(turns: list, turn: dict) -> list:
-    """Emotions proposed on earlier turns, so the classifier can vary its pick."""
-    return [t["target_emotion"] for t in sorted(turns, key=_order)
-            if _order(t) < _order(turn) and t.get("target_emotion")]
+    """The last 2 emotions proposed on earlier turns (fewer if fewer exist), so the
+    classifier can vary its pick."""
+    shown = [t["target_emotion"] for t in sorted(turns, key=_order)
+             if _order(t) < _order(turn) and t.get("target_emotion")]
+    return shown[-2:]
 
 
 def _small_talk_reply(turn, session, turns):

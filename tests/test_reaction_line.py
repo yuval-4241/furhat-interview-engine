@@ -50,3 +50,12 @@ def test_every_emotion_has_a_fallback_that_does_not_name_it():
         assert set(lines) == set(CORE_EMOTIONS), lang
     for emotion, line in FALLBACK_LINES["he"].items():
         assert not reaction_line.names_emotion(emotion, line), emotion
+
+
+def test_prompt_asks_for_two_sentences_and_a_closing_remark_that_is_never_a_question(monkeypatch):
+    seen = {}
+    _fake(monkeypatch, "line", seen)
+    reaction_line.generate("SURPRISE", 2, "Q", "A")
+    assert "2 sentences, plus an optional third" in seen["system"]
+    assert "Never a question" in seen["system"]
+    assert "ONE short sentence" not in seen["system"]
