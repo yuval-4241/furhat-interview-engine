@@ -519,3 +519,38 @@ robot (the human eye is the final judge, not Py-Feat) and reviews
 `expression_validation/config.py` EXPECTED_AUS; approve the opening-script
 design doc (`docs/superpowers/specs/2026-11-17-fixed-opening-script-design.md`);
 the API keys / Google TTS voice from 2026-11-16 (deferred to "tomorrow").
+
+## 2026-11-17 (afternoon) — Vocal features review, scripted opening (Engine), two-grade PE, friend debrief
+
+**Literature / voice**
+- `docs/literature/vocal_emotion_features.md`: 16 papers, 4-7 acoustic features
+  per robot emotion. PDFs that were free are in `תואר שני/מאמרים זיהוי רגשות בקול`
+  (4 of 16) with a list file of all of them.
+- Chirp 3 HD control (measured): rate and loudness work; pitch only via SSML,
+  imprecise; no pitch range / voice quality. Researcher: pitch within +/-1
+  semitone, tempo carries the emotion; approved for Noa so far: bored, happiness,
+  surprise, excited; Charon kept for Daniel. Samples: `~/Desktop/emotion_voice_samples/`.
+  Not wired into the robot yet.
+
+**Built (plan `docs/superpowers/plans/2026-11-17-opening-script-and-friend-debrief.md`)**
+- Website (branch `friend-debrief`, commit eff57d6): migration
+  `20261118000000_debrief_pe.sql` (emotion_trigger, pe_reason_result,
+  pe_reason_explanation, debrief_moments; phase Debrief), a Debrief turn at the
+  end of every plan, friend-toned PE question, reason grade + moments on screen.
+- Engine: scripted opening (bridge + fixed question, then small talk);
+  2-3 sentence acknowledgement; emotion trigger; reason grade; `debrief.py`.
+- Test suite: 355 passed, 5 skipped. Website: plan tests 8/8, DB checks pass.
+
+**Not done / needs the researcher**
+- Apply the migration on Supabase and deploy the website branch (the Engine
+  writes the new columns; before that, Live sessions on the new code fail).
+- No live run yet (needs the above).
+- Approve the per-turn PE question wording; choose the friend's face/voice
+  (`FRIEND_FACE` / `FRIEND_VOICE` in `.env`).
+- The No-Masking guardrail misses "sounded nervous" (it catches "seemed
+  nervous"); the pattern list is methodology-locked, so not changed.
+- Backlog: `docs/tasks/2026-11-17-feedback-agent-and-interviewer-agent.md`.
+
+**RESUME FROM HERE:** merge/deploy the website branch + migration, then a live
+Short session on the virtual robot (opening bridge, longer ack, one PBDI turn
+with reason grade, debrief with the friend).

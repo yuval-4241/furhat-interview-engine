@@ -79,7 +79,7 @@ To add an LLM model: see the ▶▶ ADD NEW LLM MODELS HERE ◀◀ block in
 worker startup.
 
 ```bash
-# Run the automated test suite (310 passed, 5 skipped: schemas, guardrail, consistency,
+# Run the automated test suite (355 passed, 5 skipped: schemas, guardrail, consistency,
 # evaluator, graph routing, emotion classifier, robot-reaction bridge,
 # PE check, Base44 client, engine worker, model registry, Furhat client, ...)
 pytest tests/ -v
@@ -195,6 +195,11 @@ persona answer -> evaluator -> schema guard (retry once on failure)
   after an answer, and PE feedback (content-only reason). All go through
   `llm_line.py` (one shared LLM-line helper: call, clean, fall back to a
   fixed line). PE word lists and fallback lines await researcher review.
+  Since 2026-11-17 the opening is the website's fixed script (Opening turns
+  with `question_text`, `generated_by_engine` false): `small_talk.bridge()`
+  adds a short reaction before each script line after the first, the line
+  is said word for word, and answers go to the small-talk follow-ups. The
+  acknowledgement after a main answer is 2-3 sentences.
 - **`reaction_line.py`** — the sentence the robot says with its PBDI
   reaction: one LLM line (role "lines") from the classified emotion and the
   answer's content, in both speakers' grammatical gender. It never names
@@ -212,8 +217,19 @@ persona answer -> evaluator -> schema guard (retry once on failure)
   rebuild the skill to use them (built-in fallback set otherwise). Offline
   on purpose: content-driven listening gestures would be a hidden
   evaluation (No-Masking).
-- **`pe_check.py`** — `grade_pe_answer(emotion, answer)` grades the
-  participant's PE answer as Correct / Partial / Wrong with an explanation.
+- **`pe_check.py`** — `grade_pe_answer(emotion, answer, trigger="")` grades the
+  participant's PE answer as Correct / Partial / Wrong with an explanation,
+  and separately grades their reason against the reaction's recorded
+  `emotion_trigger` (`emotion_classifier` now returns it): Matches / Partly /
+  No / Missing (empty when no trigger). Surprise words count as Partial for
+  a Fear target (the Furhat face limitation, 2026-11-17).
+- **`debrief.py`** — the friend debrief, the last turn of every Live
+  session (`phase` `Debrief`): the robot switches to the friend's face/voice
+  (`config.FRIEND_FACE` / `FRIEND_VOICE`) and never switches back, asks how
+  the interview went (at most 2 open follow-ups, lines that name a feeling
+  are replaced), says goodbye, and `extract_moments()` stores the moments the
+  candidate told, matched to turns and graded, as `debrief_moments`. Spec:
+  `docs/superpowers/specs/2026-11-17-friend-debrief-pe-design.md`.
 - **`hebrew_gender.py`** — masculine/feminine Hebrew wording helpers, driven
   by the participant's and the robot's gender (`engine_worker.speech_context`).
 - **`worker_common.py`** — `WORKER_ID`, `log`, `now`, shared by the worker
