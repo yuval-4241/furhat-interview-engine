@@ -318,6 +318,19 @@ the doc's status table before assuming something described there exists.
 - **Don't modify `config.NO_MASKING_FLAG_PATTERNS`, `PERSONAS`, or
   `EVALUATOR_SYSTEM_PROMPT_A`/`_B` without flagging it first** — these are
   thesis-methodology decisions, not code decisions.
+- **Every design decision involves the researcher.** Before deciding any
+  design question (what the robot says or shows, methodology, data,
+  architecture), ask her one clear question with the options, what each
+  trades off, and your recommendation, and wait for her answer. Whenever
+  something needs her action, list the exact steps she has to do (commands,
+  links, where to click), numbered.
+- **Every academic paper you use must be recorded.** When a paper backs a
+  decision, a design, a feature list or anything written for the thesis,
+  add it to the literature files (`docs/literature/` — e.g.
+  `literature_review.xlsx` or the topic review such as
+  `vocal_emotion_features.md`) or to the papers list in Notion, with: which
+  paper (authors, year, title, venue, link) and **for what purpose** it was
+  used here. A paper that isn't recorded may not be cited.
 - Current day-by-day task list and progress live in `PROJECT_PLAN.md`
   (week-by-week plan) and `SESSION_LOG.md` (running log, "resume from here"
   notes) — check those for what's already built vs. up next, rather than
