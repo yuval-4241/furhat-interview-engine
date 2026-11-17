@@ -132,7 +132,7 @@ Out of scope (recorded in the spec's feasibility results, left for later):
 ### Task 1: Base44 prompt for the Live statuses and fields (researcher pastes)
 
 **Files:**
-- Create: `docs/superpowers/specs/base44-prompts/2026-11-08-live-conversation.md`
+- Create: `docs/website-prompts/2026-11-08-live-conversation.md`
 
 **Interfaces:**
 - Produces: `Participant.gender` (`Male` / `Female`, optional), `Participant.first_name` (string, optional). Turn statuses `queued`, `robot_speaking`, `listening`,
@@ -193,7 +193,7 @@ Regenerate the OpenAPI file and give me the updated field table for Turn (exact 
 - [ ] **Step 2: Commit**
 
 ```bash
-git add docs/superpowers/specs/base44-prompts/2026-11-08-live-conversation.md
+git add docs/website-prompts/2026-11-08-live-conversation.md
 git commit -m "Add Base44 prompt for Live statuses and fields"
 ```
 

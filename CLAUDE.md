@@ -337,6 +337,10 @@ the doc's status table before assuming something described there exists.
   (https://app.notion.com/p/thesis-paper-using-in-code-41b0701ff8ee8009828ef5ac7705f21c), with: which
   paper (authors, year, title, venue, link) and **for what purpose** it was
   used here. A paper that isn't recorded may not be cited.
+- **Where things are:** `docs/README.md` maps every document (design docs,
+  plans, backlog, literature, website prompts); `prompts/README.md` indexes
+  every LLM prompt. Paper PDFs: `~/Documents/Workspace/University/תואר שני/מאמרים/`
+  (by topic); large data kept out of git: `תואר שני/data/`.
 - Current day-by-day task list and progress live in `PROJECT_PLAN.md`
   (week-by-week plan) and `SESSION_LOG.md` (running log, "resume from here"
   notes) — check those for what's already built vs. up next, rather than

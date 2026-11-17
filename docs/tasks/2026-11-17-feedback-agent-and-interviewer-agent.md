@@ -80,7 +80,7 @@ the participant mentioned and their grades.
   feedback is given there.
 - Job-interview training with virtual agents/robots that give feedback:
   VR-JIT (Smith et al.), ViTA, and the robot-mediated interview training
-  papers already in `תואר שני/מאמרים`.
+  papers already in `תואר שני/מאמרים/` (by topic).
 - Robots explaining their own emotions / explainable HRI.
 
 ---
@@ -154,5 +154,5 @@ good for the team, do they fit the company's values. The same agent
 1. Researcher answers the open questions marked "the main risk" / "who
    speaks" first (A.1, B.1).
 2. A literature pass per task (as done for the voice review), with the
-   papers saved to the matching folder under `תואר שני/`.
+   papers saved to the matching topic folder under `תואר שני/מאמרים/`.
 3. Then a design doc per agent, and a plan.

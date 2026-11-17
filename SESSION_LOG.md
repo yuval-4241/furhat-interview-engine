@@ -524,7 +524,7 @@ the API keys / Google TTS voice from 2026-11-16 (deferred to "tomorrow").
 
 **Literature / voice**
 - `docs/literature/vocal_emotion_features.md`: 16 papers, 4-7 acoustic features
-  per robot emotion. PDFs that were free are in `תואר שני/מאמרים זיהוי רגשות בקול`
+  per robot emotion. PDFs that were free are in `תואר שני/מאמרים/זיהוי רגשות בקול`
   (4 of 16) with a list file of all of them.
 - Chirp 3 HD control (measured): rate and loudness work; pitch only via SSML,
   imprecise; no pitch range / voice quality. Researcher: pitch within +/-1
@@ -554,3 +554,17 @@ the API keys / Google TTS voice from 2026-11-16 (deferred to "tomorrow").
 **RESUME FROM HERE:** merge/deploy the website branch + migration, then a live
 Short session on the virtual robot (opening bridge, longer ack, one PBDI turn
 with reason grade, debrief with the friend).
+
+## 2026-11-17 (evening) — Folders organized (researcher's approval)
+
+- Project: `docs/README.md` (a map of all documents), `prompts/README.md`
+  (every prompt, what it does, who uses it, which are locked). Website-builder
+  prompts moved from `docs/superpowers/specs/base44-prompts/` to
+  `docs/website-prompts/`. Large untracked data moved out of the repo to
+  `~/Documents/Workspace/University/תואר שני/data/` (mit dataset, archive.zip,
+  הקלטות-יובל); `credentials/` stays (the gitignored place for the STT key).
+- Mac, `תואר שני/`: `מאמרים/` with one subfolder per topic (the 7 paper
+  folders), `תזה/` (+ בירוקרטיה, the ROMAN talk, מאמר IEEE), `קוד וכלים/`
+  (furhat, mpi2furhat, srt, tutorials-main), `data/`. Code didn't reference
+  any of the moved folders.
+
