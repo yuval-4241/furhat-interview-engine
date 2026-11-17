@@ -35,7 +35,7 @@
 
 ### Task 1: Website — schema, Debrief turn, PE question, reason grade on screen
 
-Repo: `~/Documents/Workspace/University/base44/furhat-insight-lab`.
+Repo: `~/Documents/Workspace/University/lab-website/furhat-insight-lab` (was `base44/`, renamed 2026-11-17).
 
 **Files:**
 - Create: `supabase/migrations/20261118000000_debrief_pe.sql`

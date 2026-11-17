@@ -560,11 +560,14 @@ with reason grade, debrief with the friend).
 - Project: `docs/README.md` (a map of all documents), `prompts/README.md`
   (every prompt, what it does, who uses it, which are locked). Website-builder
   prompts moved from `docs/superpowers/specs/base44-prompts/` to
-  `docs/website-prompts/`. Large untracked data moved out of the repo to
-  `~/Documents/Workspace/University/תואר שני/data/` (mit dataset, archive.zip,
-  הקלטות-יובל); `credentials/` stays (the gitignored place for the STT key).
+  `docs/website-prompts/`. Large untracked data (mit dataset, archive.zip,
+  הקלטות-יובל) moved into the project's own `data/`, still gitignored
+  (researcher: data belongs inside the project that needs it, no shared data
+  folder); `credentials/` stays (the gitignored place for the STT key).
 - Mac, `תואר שני/`: `מאמרים/` with one subfolder per topic (the 7 paper
-  folders), `תזה/` (+ בירוקרטיה, the ROMAN talk, מאמר IEEE), `קוד וכלים/`
-  (furhat, mpi2furhat, srt, tutorials-main), `data/`. Code didn't reference
-  any of the moved folders.
+  folders), `תזה/` (+ the ROMAN talk, מאמר IEEE), `בירוקרטיה/` on its own,
+  `פרויקטים/` (furhat, mpi2furhat, srt, tutorials-main). The website folder
+  `University/base44/` was renamed `University/lab-website/` (the repo inside
+  is still `furhat-insight-lab`). Code didn't reference any of the moved
+  folders.
 

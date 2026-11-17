@@ -51,4 +51,6 @@ and which are methodology-locked.
 
 - Robot expressions and their validation: `furhat-emotion-study/expression_validation/README.md`
 - Website contract with the Engine: `furhat-insight-lab/ENGINE_INTEGRATION.md`, `migration/ENGINE_API.md`
-- Large data kept out of git: `~/Documents/Workspace/University/תואר שני/data/` (MIT dataset, archive.zip, recordings)
+- Large data this project needs, kept out of git: `../data/mit dataset/`, `../data/archive.zip`, `../data/הקלטות-יובל/`
+- The website repo: `~/Documents/Workspace/University/lab-website/furhat-insight-lab`
+- Other projects (Furhat tools, srt, tutorials): `~/Documents/Workspace/University/תואר שני/פרויקטים/`

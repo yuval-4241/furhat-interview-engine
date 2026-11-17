@@ -6,12 +6,12 @@ data/review_queue.jsonl
 data/run_log.jsonl
 data/external/
 results/
-archive.zip
-הקלטות-יובל/
+data/archive.zip
+data/הקלטות-יובל/
 data/sessions/
 data/technical_log.jsonl
 credentials/
-mit dataset/
+data/mit dataset/
 
 # Office lock files
 ~$*
