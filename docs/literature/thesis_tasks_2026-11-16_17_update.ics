@@ -1,0 +1,67 @@
+BEGIN:VCALENDAR
+VERSION:2.0
+PRODID:-//conversation-engine//thesis//HE
+CALSCALE:GREGORIAN
+BEGIN:VEVENT
+UID:10f79b6b-5057-4bd3-9e9c-128269687bdd@conversation-engine
+DTSTAMP:20261114T112315Z
+DTSTART;VALUE=DATE:20261116
+DTEND;VALUE=DATE:20261117
+SUMMARY:שיחה עם המנחה: נקודה נוספת – חיוך וכ
+ יווץ גבות בהקשבה
+DESCRIPTION:נקודה נוספת לשיחה עם המנחה – תנוע
+ ות ההקשבה של הרובוט:\n• חיוך קל בזמן ההק
+ שבה (גם בזמן תשובות הראיון): הוספתי לחמי
+ מות. הסיכון – חיוך יכול להיקרא כ'תשובה ט
+ ובה' (No-Masking) או להתערבב עם הרגש שהמשתתף צ
+ ריך לזהות מיד אחר כך. החיוך חלש מרמה 1 של 
+ שמחה.\n• כיווץ גבות קל לריכוז (AU4): חלש מכ
+ ל רגש בתגובות\, אבל AU4 הוא חלק מכעס – בזמ
+ ן תשובה הוא יכול להיקרא כאי-הסכמה.\n• כל 
+ התנועות זהות לכל המשתתפים ולא תלויות בת
+ וכן התשובה (נוצרו מראש ואושרו ידנית).
+BEGIN:VALARM
+ACTION:DISPLAY
+DESCRIPTION:שיחה עם המנחה: נקודה נוספת – חיוך 
+ וכיווץ גבות בהקשבה
+TRIGGER:PT9H
+END:VALARM
+END:VEVENT
+BEGIN:VEVENT
+UID:2d80acf4-50da-4aac-9f40-34c0f3d9e2cf@conversation-engine
+DTSTAMP:20261114T112315Z
+DTSTART;VALUE=DATE:20261117
+DTEND;VALUE=DATE:20261118
+SUMMARY:תזה: לסיים סקירת תנועות הקשבה + בניי
+ ה מחדש של ה-skill
+DESCRIPTION:המשימה:\nלסיים את סקירת תנועות ההק
+ שבה של הרובוט\, ואז לבנות מחדש את ה-skill עם
+  הסט המאושר.\n\nההקשר:\n• התנועות נוצרו על
+  ידי GPT-5 מתוך "שרירי הקשבה" מותרים בלבד (ה
+ נהון\, הטיית ראש\, הרמת גבות\, חיוך קל\, כי
+ ווץ גבות קל לריכוז)\, סוננו אוטומטית ואו
+ שרו על ידי בעמוד הסקירה – בהשראת Fujii & Mina
+ to (Sci. Rep. 2026) ו-Expressive Furhat (HRI 2026).\n• בסקירה 
+ הראשונה: 16 נשמרו\, 10 נפסלו\, 13 עדיין לא סו
+ מנו.\n• ממתינות לבדיקה: תנועות הגבות שחו
+ זקו (×1.7)\, שני חיוכים שחוזקו\, SoftSmileHold (חי
+ וך חזק יותר)\, TinyRollResetMirrored (ארוכה יותר)\, Fo
+ cusedBrowFurrow (כיווץ חזק יותר – לבדוק שזה נרא
+ ה כמו ריכוז ולא כמו אי-הסכמה).\n• איזון: מ
+ תוך 16 שנשמרו\, 8 הם הנהוני "תמשיכי" ורק 1 ש
+ ל חמימות – כדאי לאשר עוד חיוכים ותנועות
+  גבות.\n\nהשלבים:\n1. להפעיל את InterviewSkill ב-Furh
+ at.\n2. בטרמינל: cd ~/Documents/GitHub/conversation_engine && sou
+ rce venv/bin/activate && streamlit run gesture_review_app.py\n3. לנג
+ ן כל אחת מ-13 התנועות\, לסמן keep/drop ולכתוב ה
+ ערה.\n4. לעצור את ה-skill ולבקש מ-Claude לבנות מ
+ חדש עם הסט המאושר.\n5. אופציונלי: סבב יציר
+ ה נוסף שמשתמש בהערות שלי.
+BEGIN:VALARM
+ACTION:DISPLAY
+DESCRIPTION:תזה: לסיים סקירת תנועות הקשבה + בנ
+ ייה מחדש של ה-skill
+TRIGGER:PT9H
+END:VALARM
+END:VEVENT
+END:VCALENDAR

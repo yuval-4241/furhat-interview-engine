@@ -1,0 +1,96 @@
+BEGIN:VCALENDAR
+VERSION:2.0
+PRODID:-//conversation-engine//thesis//HE
+CALSCALE:GREGORIAN
+BEGIN:VEVENT
+UID:fefed5aa-67e3-4124-93da-5f1ee52f1426@conversation-engine
+DTSTAMP:20261114T101515Z
+DTSTART;VALUE=DATE:20261116
+DTEND;VALUE=DATE:20261117
+SUMMARY:שיחה עם המנחה: נקודות לדיון + טבלת המ
+ אמרים
+DESCRIPTION:נקודות לשיחה עם המנחה – להביא את 
+ טבלת המאמרים:\nconversation_engine/docs/literature/literature
+ _review.xlsx (4 מאמרים)\n\n1. טבלת המאמרים:\n   • Exp
+ ressive Furhat (Abbo et al.\, HRI 2026)\n   • Xpress (Antony et al.\, 
+ arXiv 2025)\n   • Holistic LLM-Based Expressive Behavior Generation (N
+ ichols et al.\, HRI 2026)\n   • Fujii & Minato (RIKEN)\, Scientific Re
+ ports 2026\n   הדפוס המשותף: LLM מייצר הבעה\, והמ
+ שתתפים אומרים 'יותר טבעי' – אבל אין בקרה
+  על כמות התנועה\, ואף אחד לא בודק שהרגשות
+  באמת מזוהים. זה בדיוק הפער שהספרייה המכ
+ וילת שלי ומשימת ה-PE מכסות.\n\n2. המאמר של Fuj
+ ii & Minato:\n   • 672 הבעות ל-75 רגשות על אנדרואי
+ ד\, GPT-4.1 מכוונן ו-3 סבבי הערכה אנושית.\n   •
+  ההסכמה בין המעריכים נמוכה מאוד (α ≈ 0.1)\,
+  והם לא בדקו זיהוי – התווית ניתנה מראש.\n
+    • מסקנה בשבילי: לא להוסיף רגשות מורכב
+ ים; להשאיר סט קטן ומכויל.\n   • רעיון לבדו
+ ק איתו: Py-Feat כבדיקת כיול אוטומטית של 33 הה
+ בעות שלי (מתוכנן ליום שלישי).\n\n3. שאלה פת
+ וחה – רגש בקול:\n   האם הקול של הרובוט ישק
+ ף את הרגש (גובה\, קצב ועוצמה – אפשרי רק ב
+ קולות Azure)\, או יישאר ניטרלי?\n   אם הקול מב
+ טא רגש\, משימת PE נעשית קלה יותר ולא ברור 
+ אם המשתתף זיהה מהפנים או מהקול. אפשרות: 
+ קול רגשי מול קול ניטרלי כתנאי במחקר.\n\n4. 
+ עדכון על החלטות השבוע:\n   • עוצמת רגש 2–3
+  בלבד\, וגיוון רגשות בתוך הסשן.\n   • הרגש 
+ מוצג 2 שניות בשקט לפני המשפט\, ואז חזרה ל
+ ניטרלי.\n   • בזמן ההקשבה: רק הנהונים והס
+ טת מבט ניטרליים.\n   • שיחת חולין חופשית 
+ עם שאלות המשך.
+BEGIN:VALARM
+ACTION:DISPLAY
+DESCRIPTION:שיחה עם המנחה: נקודות לדיון + טבלת 
+ המאמרים
+TRIGGER:PT9H
+END:VALARM
+END:VEVENT
+BEGIN:VEVENT
+UID:6bc40b95-b2ad-4680-9421-402ea74eb940@conversation-engine
+DTSTAMP:20261114T101515Z
+DTSTART;VALUE=DATE:20261117
+DTEND;VALUE=DATE:20261118
+SUMMARY:תזה: בדיקת כיול אוטומטית של 33 ההבעות
+  עם Py-Feat
+DESCRIPTION:המשימה:\nלבדוק אוטומטית את ספריית 
+ הרגשות המכוילת של Furhat (11 רגשות × 3 עוצמות
+  = 33 הבעות) בעזרת Py-Feat – ספריית Python שמזהה 
+ יחידות תנועה (AU) ורגשות מתמונת פנים.\n\nהה
+ קשר:\n• המקור: Fujii & Minato (RIKEN)\, Scientific Reports 202
+ 6 – Development of a facial expression database covering diverse emoti
+ onal states using LLMs and an android robot. הם השתמשו ב-Py-Fea
+ t כדי לאפיין הבעות של רובוט.\n• מה לא לקח
+ ת מהם: 75 רגשות מורכבים עם הסכמה נמוכה מא
+ וד בין המעריכים (Krippendorff α ≈ 0.1). זה מחזק א
+ ת הבחירה שלי בסט קטן ומכויל לפי FACS\, כי ב
+ משימת PE המשתתף צריך לזהות את הרגש באמת.\n
+ • המטרה: בדיקה זולה ואוטומטית שמשלימה א
+ ת מחקר הכיול עם אנשים (EmotionSkill)\, ולא מחלי
+ פה אותו.\n\nהשלבים:\n1. לצלם את 33 ההבעות מ-Fur
+ hat או מהסימולטור (EmotionLibrary.getEmotion(emotion\, 1/2/3
+ ))\, תמונה לכל הבעה\, באותה תאורה וזווית.\n2
+ . להריץ Py-Feat על כל תמונה ולקבל טבלת pandas: י
+ חידות תנועה + ציוני 6 רגשות הבסיס + ניטרל
+ י.\n3. לבדוק בטבלה:\n   • האם יחידות התנועה 
+ שתכננתי לפי FACS מזוהות (למשל AU6+AU12 בשמחה)?\
+ n   • האם העוצמה עולה בהדרגה מרמה 1 לרמה 3?
+ \n   • האם יש רגשות שמתבלבלים זה בזה (מטרי
+ צת בלבול)?\n4. לסכם אילו הבעות צריך לכייל 
+ מחדש.\n\nמגבלה לזכור:\nPy-Feat אומן על פנים אנ
+ ושיות\, והפנים של Furhat מוקרנות. התוצאות ה
+ ן אינדיקציה\, לא הוכחה.\n\nכלים (גם הכנה לר
+ איונות):\nPython\, pandas (groupby לפי רגש ועוצמה)\, N
+ umPy\, SciPy (מתאם בין העוצמה המתוכננת לעוצמה
+  שזוהתה).\n\nקבצים:\n• furhat-emotion-study/emotion-library
+ /.../EmotionsLibrary.kt\n• conversation_engine/docs/literature/literat
+ ure_review.xlsx (שורה 4)
+BEGIN:VALARM
+ACTION:DISPLAY
+DESCRIPTION:תזה: בדיקת כיול אוטומטית של 33 ההבע
+ ות עם Py-Feat
+TRIGGER:PT9H
+END:VALARM
+END:VEVENT
+END:VCALENDAR
