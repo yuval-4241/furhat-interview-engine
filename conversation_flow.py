@@ -94,8 +94,8 @@ def _update(turn: dict, **fields) -> dict:
     return {**turn, **fields}
 
 
-def _say(text: str, session: dict) -> None:
-    if not furhat_client.say(text, language=session.get("language"))["sent"]:
+def _say(text: str, session: dict, gestures: bool = True) -> None:
+    if not furhat_client.say(text, language=session.get("language"), gestures=gestures)["sent"]:
         raise RobotDown()
 
 
@@ -165,14 +165,14 @@ def _listen_for(repeat_line: str, session: dict, backchannel: bool = True) -> tu
             if repeated:
                 return None, "no_answer"
             repeated = True
-            _say(repeat_line, session)
+            _say(repeat_line, session, gestures=backchannel)
         else:
             if not furhat_client.health_check():
                 raise RobotDown()
             if asked_again:
                 return None, "no_recognition"
             asked_again = True
-            _say(NOT_HEARD_LINE, session)
+            _say(NOT_HEARD_LINE, session, gestures=backchannel)
 
 
 # ── Status handlers: each does one step and returns the updated turn ──────
@@ -301,7 +301,7 @@ def _react(turn, session, turns, propose):
     done = b44.list_records("RobotCommand", {"turn": turn["id"], "type": "say_with_gesture", "status": "done"}, limit=1)
     if done:
         # Retry after a robot drop on the PE question: the reaction already played, never repeat it (P5).
-        _say(PE_QUESTION, session)
+        _say(PE_QUESTION, session, gestures=False)
         return _update(turn, robot_line=done[0]["text"], status="pe_listening")
     text = turn.get("final_reply") or turn.get("proposed_reply", "")
     count = len(b44.list_records("RobotCommand", {"session": session["id"]}, limit=1000))
@@ -317,7 +317,7 @@ def _react(turn, session, turns, propose):
         b44.update_record("RobotCommand", cmd["id"], {"status": "error", "error_message": result["reason"]})
         raise RobotDown()
     b44.update_record("RobotCommand", cmd["id"], {"status": "done", "completed_at": now()})
-    _say(PE_QUESTION, session)
+    _say(PE_QUESTION, session, gestures=False)
     return _update(turn, robot_line=text, status="pe_listening")
 
 

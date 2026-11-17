@@ -19,8 +19,10 @@ import config
 TIMEOUT = 2.0  # seconds -- same budget robot_bridge.py uses
 
 
-def say(text: str, language: str = None, gender: str = None) -> dict:
-    payload = {"text": text}
+def say(text: str, language: str = None, gender: str = None, gestures: bool = True) -> dict:
+    """gestures: small content-blind nods/brow raises at some sentence starts;
+    off for the PE question, where any extra movement could mix into the emotion."""
+    payload = {"text": text, "gestures": gestures}
     if language:
         payload["language"] = language
     if gender:

@@ -175,15 +175,18 @@ LISTEN_TIMEOUT_MS = 10000
 LISTEN_END_SIL_MS = 3000
 LISTEN_MAX_SPEECH_MS = 120000
 
-# Grammatical gender of each Furhat Hebrew voice: the robot speaks about
-# itself in this form (Plan 2, decision P2). Voices not listed -> neutral.
 # The listening gestures the researcher approved (listening_gestures.py review);
 # bundled into the skill as a resource, so a rebuild picks them up.
 LISTENING_GESTURES_APPROVED_PATH = os.path.join(
     os.path.dirname(__file__), "..", "furhat-emotion-study", "interview-skill", "src", "main", "resources",
     "listening_gestures.json")
 
-VOICE_GENDERS = {"AvriNeural": "male", "HilaNeural": "female", "Hila:DragonLatestNeural": "female"}
+# Grammatical gender of each Hebrew persona voice: the robot speaks about
+# itself in this form (Plan 2, decision P2). Voices not listed -> neutral.
+# he-IL-Chirp3-HD-* are Google TTS voices, synthesized by the skill
+# (researcher decision 2026-11-16: Charon = Daniel, Aoede = Noa).
+VOICE_GENDERS = {"AvriNeural": "male", "HilaNeural": "female", "Hila:DragonLatestNeural": "female",
+                 "he-IL-Chirp3-HD-Charon": "male", "he-IL-Chirp3-HD-Aoede": "female"}
 
 # ── Base44 lab app (frontend + DB the Engine polls) ─────────────────────────
 # The app never calls the Engine; the Engine polls entities through the REST

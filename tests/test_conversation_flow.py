@@ -65,6 +65,7 @@ def test_small_talk_turn_walks_its_statuses(fake, monkeypatch):
     assert saved["claimed_by"] == flow.WORKER_ID
     assert robot.calls == [("say", "Opening 1/2"), ("listen",)]
     assert robot.backchannels == [True]
+    assert robot.speech_gestures == [True]
 
 
 def opening_turns(store, session, count=2):
@@ -444,6 +445,7 @@ def test_approved_reaction_then_pe_question_then_grade(fake, monkeypatch):
     saved = fake.get("Turn", t["id"])
     assert robot.calls == [("react", "HAPPINESS", 2, "איזה יופי!"), ("say", flow.PE_QUESTION), ("listen",)]
     assert robot.backchannels == [False]  # no nods while the participant guesses the emotion
+    assert robot.speech_gestures == [False]  # nor while the robot asks the PE question
     assert fake.statuses(t["id"]) == ["pe_listening", "engine_processing", "awaiting_feedback"]
     assert saved["robot_line"] == "איזה יופי!"
     assert saved["participant_pe_answer"] == "התלהבת"
@@ -520,7 +522,7 @@ def test_retry_after_pe_question_drop_does_not_repeat_reaction(fake, monkeypatch
                   target_emotion="HAPPINESS", intensity=2)
 
     class DropsOnSay(FakeRobot):
-        def say(self, text, language=None, gender=None):
+        def say(self, text, language=None, gender=None, gestures=True):
             self.calls.append(("say", text))
             return {"sent": False, "reason": "connection refused"}
 

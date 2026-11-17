@@ -153,6 +153,16 @@ def test_listen_can_turn_off_backchannel(monkeypatch):
     assert seen["body"]["backchannel"] is False
 
 
+def test_say_sends_the_speech_gestures_flag(monkeypatch):
+    bodies = []
+    monkeypatch.setattr(furhat_client.requests, "post",
+                        lambda url, data=None, **k: bodies.append(json.loads(data)) or _Resp({}))
+    furhat_client.say("שלום")
+    furhat_client.say("איזה רגש ראית?", gestures=False)
+    assert bodies[0]["gestures"] is True
+    assert bodies[1]["gestures"] is False
+
+
 def test_listen_timeout_returns_failed(monkeypatch):
     def boom(*a, **k):
         raise requests.exceptions.ReadTimeout("slow")

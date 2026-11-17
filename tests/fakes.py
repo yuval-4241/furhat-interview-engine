@@ -71,12 +71,14 @@ class FakeRobot:
         self.connected = connected
         self.calls = []
         self.backchannels = []  # the backchannel flag of each listen() call
+        self.speech_gestures = []  # the gestures flag of each say() call
 
     def _sent(self):
         return {"sent": self.connected, "reason": None if self.connected else "connection refused"}
 
-    def say(self, text, language=None, gender=None):
+    def say(self, text, language=None, gender=None, gestures=True):
         self.calls.append(("say", text))
+        self.speech_gestures.append(gestures)
         return self._sent()
 
     def react(self, emotion, intensity, text=None, language=None, gender=None):
