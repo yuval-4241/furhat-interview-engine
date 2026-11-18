@@ -32,6 +32,7 @@ document is for.
 | 2026-11-02 | `2026-11-02-base44-lab-app-integration-design.md` | — |
 | 2026-11-04 | `2026-11-04-autonomous-robot-conversation-design.md` | `2026-11-04-robot-foundations.md`, `2026-11-08-autonomous-conversation.md` |
 | 2026-11-17 | `2026-11-17-fixed-opening-script-design.md`, `2026-11-17-friend-debrief-pe-design.md` | `2026-11-17-opening-script-and-friend-debrief.md` |
+| 2026-11-18 | `2026-11-18-cue-to-emotion-mapping-design.md` | — |
 
 ## Literature
 
